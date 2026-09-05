@@ -32,6 +32,7 @@
 
     const container = document.createElement('div');
     container.id = 'tuif-overlay-container';
+    container.className = 'mode-select';
 
     container.innerHTML = `
       <canvas id="tuif-base-canvas"></canvas>
@@ -49,21 +50,21 @@
 
       <!-- Bottom Floating Pill Toolbar -->
       <div id="tuif-pill-toolbar">
-        <!-- Mode Switcher: Draw vs Component Select -->
+        <!-- Mode Switcher: Select Component on Left (Default), Draw on Right -->
         <div class="tuif-mode-group">
-          <button class="tuif-mode-btn active" id="tuif-mode-draw" title="Manual Draw (D)">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
-              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
-            </svg>
-            <span>Draw</span>
-          </button>
-          <button class="tuif-mode-btn" id="tuif-mode-select" title="Select Component (S)">
+          <button class="tuif-mode-btn active" id="tuif-mode-select" title="Select Component (S)">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="3 3"></rect>
               <circle cx="12" cy="12" r="3"></circle>
             </svg>
             <span>Select Component</span>
+          </button>
+          <button class="tuif-mode-btn" id="tuif-mode-draw" title="Manual Draw (D)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+            </svg>
+            <span>Draw</span>
           </button>
         </div>
 
@@ -150,8 +151,8 @@
     const toastTitle = container.querySelector('#tuif-toast-title');
     const toastPath = container.querySelector('#tuif-toast-path');
 
-    // Mode: 'draw' or 'select'
-    let currentMode = 'draw';
+    // Mode: 'select' (default) or 'draw'
+    let currentMode = 'select';
     const annotationColor = '#EF4444'; // Red default
     const strokeWidth = 3.5;
 
