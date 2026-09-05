@@ -3,6 +3,11 @@
  * Two annotation options:
  * 1. Freehand Draw (draw over manually with red pen)
  * 2. Component Select (hover on webpage components and click to box them in red, multiple selection supported)
+ * 
+ * Copy options:
+ * - Ctrl+C: Copy screenshot image path (ephemeral, auto-cleaning)
+ * - Ctrl+Shift+C: Copy component code block (with screenshot path and exact HTML/JSX component markup)
+ * - Ctrl+S: Permanent download (also copies path)
  */
 
 (() => {
@@ -80,15 +85,23 @@
           </svg>
         </button>
 
-        <!-- Copy (Ephemeral & copies path) -->
-        <button class="tuif-pill-btn" id="tuif-btn-copy" title="Copy Ephemeral Path for Terminal (Ctrl+C)">
+        <!-- Copy Image Path (Ctrl+C) -->
+        <button class="tuif-pill-btn" id="tuif-btn-copy" title="Copy Screenshot Path (Ctrl+C)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
 
-        <!-- Download (Permanent & copies path) -->
+        <!-- Copy Component Code Block (Ctrl+Shift+C) -->
+        <button class="tuif-pill-btn" id="tuif-btn-copy-code" title="Copy Component Code Block (Ctrl+Shift+C)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16 18 22 12 16 6"></polyline>
+            <polyline points="8 6 2 12 8 18"></polyline>
+          </svg>
+        </button>
+
+        <!-- Download (Permanent & copies path, Ctrl+S) -->
         <button class="tuif-pill-btn" id="tuif-btn-download" title="Save Permanently & Copy Path (Ctrl+S)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -128,6 +141,7 @@
     const btnUndo = container.querySelector('#tuif-btn-undo');
     const btnRedo = container.querySelector('#tuif-btn-redo');
     const btnCopy = container.querySelector('#tuif-btn-copy');
+    const btnCopyCode = container.querySelector('#tuif-btn-copy-code');
     const btnDownload = container.querySelector('#tuif-btn-download');
     const btnModeDraw = container.querySelector('#tuif-mode-draw');
     const btnModeSelect = container.querySelector('#tuif-mode-select');
@@ -146,13 +160,19 @@
     let hoveredElement = null;
     let hoveredRect = null;
 
+    // Track selected components for code block extraction
+    const selectedComponents = [];
+
     const undoStack = [];
     const redoStack = [];
     const MAX_HISTORY = 30;
 
-    function pushHistory() {
+    function pushHistory(actionType = 'stroke') {
       if (undoStack.length >= MAX_HISTORY) undoStack.shift();
-      undoStack.push(baseCtx.getImageData(0, 0, baseCanvas.width, baseCanvas.height));
+      undoStack.push({
+        data: baseCtx.getImageData(0, 0, baseCanvas.width, baseCanvas.height),
+        actionType: actionType
+      });
       redoStack.length = 0;
       updateHistoryButtons();
     }
@@ -167,7 +187,12 @@
       const current = undoStack.pop();
       redoStack.push(current);
       const prev = undoStack[undoStack.length - 1];
-      baseCtx.putImageData(prev, 0, 0);
+      baseCtx.putImageData(prev.data, 0, 0);
+
+      if (current.actionType === 'component' && selectedComponents.length > 0) {
+        selectedComponents.pop();
+      }
+
       updateHistoryButtons();
     }
 
@@ -175,7 +200,7 @@
       if (redoStack.length === 0) return;
       const next = redoStack.pop();
       undoStack.push(next);
-      baseCtx.putImageData(next, 0, 0);
+      baseCtx.putImageData(next.data, 0, 0);
       updateHistoryButtons();
     }
 
@@ -183,7 +208,7 @@
     const img = new Image();
     img.onload = () => {
       baseCtx.drawImage(img, 0, 0, width, height);
-      pushHistory();
+      pushHistory('init');
     };
     img.src = dataUrl;
 
@@ -217,7 +242,6 @@
         if (!el || container.contains(el) || el === container) continue;
         if (el === document.documentElement || el === document.body) continue;
 
-        // Skip microscopic or purely transparent containers
         const rect = el.getBoundingClientRect();
         if (rect.width >= 12 && rect.height >= 12) {
           return { element: el, rect: rect };
@@ -249,7 +273,7 @@
       ctx.restore();
     }
 
-    // Draw Permanent Red Box on Selected Component
+    // Draw Permanent Red Box on Selected Component (Outline only)
     function drawComponentBox(rect) {
       baseCtx.save();
       baseCtx.strokeStyle = annotationColor;
@@ -271,7 +295,23 @@
       }
       baseCtx.restore();
 
-      pushHistory();
+      pushHistory('component');
+    }
+
+    // Clean Component HTML for Code Block
+    function cleanComponentHTML(el) {
+      if (!el) return '';
+      const clone = el.cloneNode(true);
+
+      // Truncate gigantic base64 inline images
+      const images = clone.querySelectorAll('img');
+      images.forEach(img => {
+        if (img.src && img.src.startsWith('data:image/') && img.src.length > 120) {
+          img.src = 'data:image/...[base64-truncated]';
+        }
+      });
+
+      return clone.outerHTML.trim();
     }
 
     // Canvas Events
@@ -286,6 +326,13 @@
         const found = getComponentAtPoint(e.clientX, e.clientY);
         if (found && found.rect) {
           drawComponentBox(found.rect);
+
+          // Record component element and HTML code block
+          selectedComponents.push({
+            element: found.element,
+            rect: found.rect,
+            html: cleanComponentHTML(found.element)
+          });
 
           // Flash confirmation in preview
           previewCtx.clearRect(0, 0, width, height);
@@ -308,7 +355,6 @@
         previewCtx.clearRect(0, 0, width, height);
         drawStroke(previewCtx, points);
       } else if (currentMode === 'select') {
-        // If hovering on top of toolbar or buttons, do not inspect
         if (e.target && (e.target.closest('#tuif-pill-toolbar') || e.target.closest('#tuif-close-btn'))) {
           previewCtx.clearRect(0, 0, width, height);
           componentTag.style.display = 'none';
@@ -365,7 +411,7 @@
         previewCtx.clearRect(0, 0, width, height);
         drawStroke(baseCtx, points);
         points = [];
-        pushHistory();
+        pushHistory('stroke');
       }
     });
 
@@ -407,7 +453,7 @@
       }
     }
 
-    // 1. COPY ACTION (Ephemeral: Auto-cleans previous copied screenshots)
+    // 1. COPY IMAGE PATH ACTION (Ctrl+C — Ephemeral: Auto-cleans previous copied screenshots)
     async function handleCopy() {
       btnCopy.disabled = true;
       btnCopy.style.opacity = '0.5';
@@ -424,7 +470,7 @@
           const pathToCopy = response.path;
           await copyTextToClipboard(pathToCopy);
 
-          toastTitle.textContent = 'Ephemeral path copied! (Auto-cleans on next copy)';
+          toastTitle.textContent = 'Screenshot path copied! (Ctrl+C)';
           toastPath.textContent = pathToCopy;
           toast.classList.add('show');
 
@@ -449,7 +495,97 @@
       handleCopy();
     });
 
-    // 2. DOWNLOAD ACTION (Permanent: Saved permanently & path copied to clipboard)
+    // 2. COPY COMPONENT CODE BLOCK ACTION (Ctrl+Shift+C)
+    async function handleCopyComponentCode() {
+      btnCopyCode.disabled = true;
+      btnCopyCode.style.opacity = '0.5';
+
+      try {
+        let components = [...selectedComponents];
+
+        // If user hasn't clicked to box any component yet, but is currently hovering over one in select mode:
+        if (components.length === 0 && hoveredElement && hoveredRect) {
+          drawComponentBox(hoveredRect);
+          components.push({
+            element: hoveredElement,
+            rect: hoveredRect,
+            html: cleanComponentHTML(hoveredElement)
+          });
+        }
+
+        if (components.length === 0) {
+          toastTitle.textContent = 'No Component Selected';
+          toastPath.textContent = 'Select a component first (Press S, then click elements on the page).';
+          toast.classList.add('show');
+          setTimeout(() => toast.classList.remove('show'), 2500);
+          return;
+        }
+
+        // Save annotated screenshot to ephemeral storage so prompt includes both image + code block!
+        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        const response = await chrome.runtime.sendMessage({
+          type: 'COPY_EPHEMERAL',
+          dataUrl: fullDataUrl
+        });
+
+        const imagePath = response?.path || '';
+
+        // Construct structured markdown code block output
+        let output = '';
+        if (imagePath) {
+          output += `${imagePath}\n\n`;
+        }
+
+        if (components.length === 1) {
+          const comp = components[0];
+          const tag = comp.element.tagName.toLowerCase();
+          const id = comp.element.id ? `#${comp.element.id}` : '';
+          const cls = typeof comp.element.className === 'string' && comp.element.className
+            ? '.' + comp.element.className.trim().split(/\s+/)[0]
+            : '';
+
+          output += `<!-- Component: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\``;
+        } else {
+          output += `<!-- Selected Components (${components.length}) -->\n\n`;
+          components.forEach((comp, idx) => {
+            const tag = comp.element.tagName.toLowerCase();
+            const id = comp.element.id ? `#${comp.element.id}` : '';
+            const cls = typeof comp.element.className === 'string' && comp.element.className
+              ? '.' + comp.element.className.trim().split(/\s+/)[0]
+              : '';
+
+            output += `<!-- Component ${idx + 1} of ${components.length}: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\`\n\n`;
+          });
+        }
+
+        await copyTextToClipboard(output.trim());
+
+        toastTitle.textContent = `Component Code Copied! (Ctrl+Shift+C)`;
+        const tagPreview = components.map(c => `<${c.element.tagName.toLowerCase()}>`).join(', ');
+        toastPath.textContent = `Copied ${components.length} component block(s): ${tagPreview}`;
+        toast.classList.add('show');
+
+        setTimeout(() => {
+          closeOverlay();
+        }, 2000);
+
+      } catch (err) {
+        console.error('Error copying component code:', err);
+        toastTitle.textContent = 'Copy Code Failed';
+        toastPath.textContent = err.message;
+        toast.classList.add('show');
+      } finally {
+        btnCopyCode.disabled = false;
+        btnCopyCode.style.opacity = '1';
+      }
+    }
+
+    btnCopyCode.addEventListener('click', (e) => {
+      e.stopPropagation();
+      handleCopyComponentCode();
+    });
+
+    // 3. DOWNLOAD ACTION (Permanent: Saved permanently & path copied to clipboard, Ctrl+S)
     async function handleDownload() {
       btnDownload.disabled = true;
       btnDownload.style.opacity = '0.5';
@@ -506,7 +642,11 @@
         redo();
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
-        handleCopy();
+        if (e.shiftKey) {
+          handleCopyComponentCode();
+        } else {
+          handleCopy();
+        }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleDownload();

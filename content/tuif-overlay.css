@@ -209,6 +209,16 @@
   color: #f87171 !important;
 }
 
+/* Copy Code Button */
+#tuif-btn-copy-code {
+  color: #38bdf8 !important;
+}
+
+#tuif-btn-copy-code:hover {
+  background: rgba(56, 189, 248, 0.25) !important;
+  color: #7dd3fc !important;
+}
+
 /* Toast Notification */
 #tuif-toast {
   position: absolute !important;
