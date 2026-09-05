@@ -1,0 +1,206 @@
+/* Screenshot TUIF - In-Page Overlay Styles */
+
+#tuif-overlay-container {
+  position: fixed !important;
+  inset: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  z-index: 2147483646 !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
+  overflow: hidden !important;
+  cursor: crosshair !important;
+}
+
+/* Background image frozen from viewport */
+#tuif-frozen-layer {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background-size: cover !important;
+  background-position: top left !important;
+  background-repeat: no-repeat !important;
+  pointer-events: none !important;
+}
+
+/* Drawing Canvases */
+#tuif-base-canvas,
+#tuif-preview-canvas {
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  display: block !important;
+}
+
+#tuif-preview-canvas {
+  pointer-events: auto !important;
+}
+
+/* Dashed Red Screen Frame */
+#tuif-frame {
+  position: absolute !important;
+  inset: 0 !important;
+  border: 3px dashed #ef4444 !important;
+  pointer-events: none !important;
+  box-sizing: border-box !important;
+  z-index: 2147483647 !important;
+}
+
+/* Close Button (Top Right) */
+#tuif-close-btn {
+  position: absolute !important;
+  top: 16px !important;
+  right: 16px !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 50% !important;
+  background: rgba(28, 32, 40, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  z-index: 2147483647 !important;
+  transition: all 0.15s ease !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+#tuif-close-btn:hover {
+  background: #ef4444 !important;
+  border-color: #ef4444 !important;
+  transform: scale(1.08) !important;
+}
+
+#tuif-close-btn:active {
+  transform: scale(0.95) !important;
+}
+
+/* Bottom Floating Pill Toolbar */
+#tuif-pill-toolbar {
+  position: absolute !important;
+  bottom: 24px !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  background: rgba(28, 32, 40, 0.95) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: 30px !important;
+  height: 48px !important;
+  padding: 0 12px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
+  z-index: 2147483647 !important;
+}
+
+/* Pill Action Buttons */
+.tuif-pill-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #cbd5e1 !important;
+  width: 34px !important;
+  height: 34px !important;
+  border-radius: 8px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.tuif-pill-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12) !important;
+  color: #ffffff !important;
+  transform: translateY(-1px) !important;
+}
+
+.tuif-pill-btn:active:not(:disabled) {
+  transform: scale(0.92) !important;
+}
+
+.tuif-pill-btn:disabled {
+  opacity: 0.28 !important;
+  cursor: not-allowed !important;
+}
+
+/* Copy Button Specific */
+#tuif-btn-copy {
+  color: #ffffff !important;
+}
+
+#tuif-btn-copy:hover {
+  background: rgba(239, 68, 68, 0.25) !important;
+  color: #f87171 !important;
+}
+
+/* Toast Notification */
+#tuif-toast {
+  position: absolute !important;
+  bottom: 84px !important;
+  left: 50% !important;
+  transform: translateX(-50%) translateY(20px) !important;
+  opacity: 0 !important;
+  background: rgba(24, 24, 27, 0.98) !important;
+  color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.18) !important;
+  border-radius: 10px !important;
+  padding: 10px 16px !important;
+  font-size: 12px !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  max-width: 680px !important;
+  pointer-events: none !important;
+  z-index: 2147483647 !important;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+#tuif-toast.show {
+  opacity: 1 !important;
+  transform: translateX(-50%) translateY(0) !important;
+}
+
+.tuif-toast-icon {
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  background: #10b981 !important;
+  color: #ffffff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 11px !important;
+  font-weight: bold !important;
+  flex-shrink: 0 !important;
+}
+
+.tuif-toast-body {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.tuif-toast-title {
+  font-weight: 600 !important;
+  font-size: 12px !important;
+  color: #f4f4f5 !important;
+}
+
+.tuif-toast-path {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  color: #34d399 !important;
+  font-size: 11px !important;
+  word-break: break-all !important;
+}

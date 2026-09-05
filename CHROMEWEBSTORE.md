@@ -94,4 +94,4 @@ The extension processes all screenshot images, drawing operations, and file oper
 
 | Version | Date | Changes | Status |
 |---------|------|---------|--------|
-| 1.0.0 | 2026-09-05 | Initial release with full-tab capture, area selection, red pen & shapes annotator, and terminal-friendly path copying | Draft |
+| 1.1.0 | 2026-09-05 | Instant 1-click in-page capture overlay with red pen annotator, floating pill toolbar, and terminal path copier | Draft |
