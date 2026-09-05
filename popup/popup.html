@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screenshot TUIF</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo-group">
+      <img src="../icons/icon-48.png" alt="logo" class="logo-img">
+      <div>
+        <div class="app-title">Screenshot TUIF</div>
+        <div class="app-subtitle">Terminal-UI-Friendly Capture</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="action-buttons">
+    <button id="btn-capture-visible" class="action-btn primary-btn">
+      <div class="btn-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+          <circle cx="8.5" cy="8.5" r="1.5"/>
+          <polyline points="21 15 16 10 5 21"/>
+        </svg>
+      </div>
+      <div class="btn-content">
+        <span class="btn-label">Capture Visible Tab</span>
+        <span class="btn-sub">Capture entire browser view</span>
+      </div>
+      <span class="shortcut-tag">Alt+Shift+S</span>
+    </button>
+
+    <button id="btn-capture-area" class="action-btn secondary-btn">
+      <div class="btn-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 3H3v3m0 12v3h3m12 0h3v-3m0-12V3h-3"/>
+          <circle cx="12" cy="12" r="1"/>
+        </svg>
+      </div>
+      <div class="btn-content">
+        <span class="btn-label">Capture Selected Area</span>
+        <span class="btn-sub">Click & drag region overlay</span>
+      </div>
+      <span class="shortcut-tag">Alt+Shift+A</span>
+    </button>
+  </div>
+
+  <div class="section-card">
+    <div class="card-header">
+      <span class="card-title">Settings & Defaults</span>
+    </div>
+    
+    <div class="setting-item">
+      <label for="setting-subfolder">Save Folder (in Downloads)</label>
+      <input type="text" id="setting-subfolder" placeholder="screenshot-tuif" spellcheck="false">
+    </div>
+
+    <div class="setting-item">
+      <label for="setting-copy-format">Terminal Paste Format</label>
+      <select id="setting-copy-format">
+        <option value="filepath">Full File Path (/path/to/image.png)</option>
+        <option value="directory">Folder Directory (/path/to/folder)</option>
+        <option value="markdown">Markdown (![screenshot](/path))</option>
+        <option value="quoted">Quoted Path ("/path/to/image.png")</option>
+      </select>
+    </div>
+
+    <div class="setting-item">
+      <label>Default Annotation Color</label>
+      <div class="color-picker-row">
+        <button class="color-dot active" data-color="#EF4444" style="background:#EF4444;" title="Red (Default)"></button>
+        <button class="color-dot" data-color="#F59E0B" style="background:#F59E0B;" title="Yellow"></button>
+        <button class="color-dot" data-color="#10B981" style="background:#10B981;" title="Green"></button>
+        <button class="color-dot" data-color="#3B82F6" style="background:#3B82F6;" title="Blue"></button>
+        <button class="color-dot" data-color="#FFFFFF" style="background:#FFFFFF;" title="White"></button>
+        <button class="color-dot" data-color="#18181B" style="background:#18181B;" title="Black"></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-card" id="recent-container" style="display:none;">
+    <div class="card-header">
+      <span class="card-title">Recent Captures</span>
+    </div>
+    <div id="recent-list" class="recent-list"></div>
+  </div>
+
+  <div class="footer-tip">
+    <div class="terminal-prefix">&gt;_</div>
+    <div class="tip-text">
+      <strong>TUIF Mode:</strong> Copying screenshots copies the exact file path to paste directly into <code>antigravity-cli</code> or your shell.
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

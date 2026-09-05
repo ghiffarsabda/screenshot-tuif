@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Screenshot TUIF - Annotator</title>
+  <link rel="stylesheet" href="editor.css">
+</head>
+<body>
+  <!-- Top Toolbar -->
+  <header class="top-bar">
+    <div class="brand-section">
+      <img src="../icons/icon-48.png" alt="logo" class="logo">
+      <div>
+        <div class="brand-title">Screenshot TUIF</div>
+        <div class="canvas-dims" id="canvas-dims">0 × 0 px</div>
+      </div>
+    </div>
+
+    <!-- Tool Selector -->
+    <div class="tools-group">
+      <button class="tool-btn active" data-tool="pen" title="Pen / Freehand (P)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 19l7-7 3 3-7 7-3-3z"/>
+          <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/>
+          <path d="M2 2l7.586 7.586"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="arrow" title="Arrow (A)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <line x1="5" y1="19" x2="19" y2="5"/>
+          <polyline points="9 5 19 5 19 15"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="rect" title="Rectangle (R)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="circle" title="Circle / Ellipse (C)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="9"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="text" title="Text Label (T)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="4 7 4 4 20 4 20 7"/>
+          <line x1="9" y1="20" x2="15" y2="20"/>
+          <line x1="12" y1="4" x2="12" y2="20"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="highlighter" title="Highlighter (H)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M9 11l-6 6v3h3l6-6"/>
+          <path d="M22 2l-7 7-4-4 7-7z"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="blur" title="Blur / Obscure (B)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7"/>
+          <rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </button>
+
+      <button class="tool-btn" data-tool="crop" title="Crop Canvas (X)">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M6 2v14a2 2 0 0 0 2 2h14"/>
+          <path d="M18 22V8a2 2 0 0 0-2-2H2"/>
+        </svg>
+      </button>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Colors (Default Red) -->
+      <div class="color-palette">
+        <button class="color-swatch active" data-color="#EF4444" style="background:#EF4444;" title="Red (Default)"></button>
+        <button class="color-swatch" data-color="#F59E0B" style="background:#F59E0B;" title="Yellow"></button>
+        <button class="color-swatch" data-color="#10B981" style="background:#10B981;" title="Green"></button>
+        <button class="color-swatch" data-color="#3B82F6" style="background:#3B82F6;" title="Blue"></button>
+        <button class="color-swatch" data-color="#8B5CF6" style="background:#8B5CF6;" title="Purple"></button>
+        <button class="color-swatch" data-color="#FFFFFF" style="background:#FFFFFF;" title="White"></button>
+        <button class="color-swatch" data-color="#18181B" style="background:#18181B;" title="Black"></button>
+        <div class="custom-color-wrapper" title="Custom color">
+          <input type="color" id="custom-color-picker" value="#EF4444">
+        </div>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Stroke Thickness -->
+      <div class="size-group">
+        <button class="size-btn" data-size="2" title="Thin (2px)"><span class="dot-fine"></span></button>
+        <button class="size-btn active" data-size="4" title="Normal (4px)"><span class="dot-med"></span></button>
+        <button class="size-btn" data-size="8" title="Thick (8px)"><span class="dot-thick"></span></button>
+      </div>
+
+      <div class="toolbar-divider"></div>
+
+      <!-- Undo / Redo -->
+      <button class="action-icon-btn" id="btn-undo" title="Undo (Ctrl+Z)" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 7v6h6"/>
+          <path d="M21 17a9 9 0 00-9-9 9 9 0 00-6 2.3L3 13"/>
+        </svg>
+      </button>
+      <button class="action-icon-btn" id="btn-redo" title="Redo (Ctrl+Y)" disabled>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 7v6h-6"/>
+          <path d="M3 17a9 9 0 019-9 9 9 0 016 2.3L21 13"/>
+        </svg>
+      </button>
+      <button class="action-icon-btn" id="btn-clear" title="Clear all annotations">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Export & Copy Actions -->
+    <div class="export-group">
+      <select id="format-select" title="Format to copy into clipboard for terminal">
+        <option value="filepath">File Path (/path/to/img.png)</option>
+        <option value="directory">Directory (/path/to/folder)</option>
+        <option value="markdown">Markdown (![img](/path))</option>
+        <option value="quoted">Quoted ("/path/to/img.png")</option>
+      </select>
+
+      <button id="btn-copy-image" class="btn btn-secondary" title="Copy raw PNG image to clipboard">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Copy Image</span>
+      </button>
+
+      <button id="btn-save-file" class="btn btn-secondary" title="Save PNG file to disk (Ctrl+S)">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Save</span>
+      </button>
+
+      <!-- Primary Terminal-Friendly Copy Button -->
+      <button id="btn-copy-path" class="btn btn-primary" title="Save annotated image and copy absolute path for Antigravity CLI / terminal (Ctrl+C)">
+        <div class="terminal-tag">&gt;_</div>
+        <span>Copy Path (TUIF)</span>
+        <kbd>Ctrl+C</kbd>
+      </button>
+    </div>
+  </header>
+
+  <!-- Canvas Workspace Area -->
+  <main class="canvas-viewport" id="viewport">
+    <div class="canvas-container" id="canvas-wrapper">
+      <canvas id="base-canvas"></canvas>
+      <canvas id="preview-canvas"></canvas>
+      
+      <!-- In-place text input overlay -->
+      <div id="text-overlay" style="display:none;">
+        <textarea id="text-editor" placeholder="Type text..." rows="1"></textarea>
+        <div class="text-actions">
+          <button id="text-submit-btn">✓</button>
+          <button id="text-cancel-btn">✕</button>
+        </div>
+      </div>
+
+      <!-- Crop confirmation bar -->
+      <div id="crop-actions" style="display:none;">
+        <button id="crop-confirm-btn" class="btn btn-sm btn-primary">Apply Crop</button>
+        <button id="crop-cancel-btn" class="btn btn-sm btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Bar: Zoom & Status -->
+  <footer class="bottom-bar">
+    <div class="status-info">
+      <span class="status-indicator"></span>
+      <span id="status-text">Screenshot loaded. Annotate and press "Copy Path" for terminal.</span>
+    </div>
+
+    <div class="zoom-controls">
+      <button class="zoom-btn" id="btn-zoom-out" title="Zoom Out (-)">−</button>
+      <span class="zoom-label" id="zoom-level">100%</span>
+      <button class="zoom-btn" id="btn-zoom-in" title="Zoom In (+)">+</button>
+      <button class="zoom-btn-fit" id="btn-zoom-fit" title="Fit to Window">Fit</button>
+      <button class="zoom-btn-fit" id="btn-zoom-100" title="Actual Size (1:1)">1:1</button>
+    </div>
+  </footer>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <div class="toast-icon">✓</div>
+    <div class="toast-body">
+      <div class="toast-title" id="toast-title">Copied!</div>
+      <div class="toast-message" id="toast-message"></div>
+    </div>
+  </div>
+
+  <script src="editor.js"></script>
+</body>
+</html>

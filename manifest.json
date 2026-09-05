@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "Screenshot TUIF - Terminal Friendly Capture",
+  "version": "1.0.0",
+  "description": "Capture screenshots, annotate with red pen, shapes & text, and copy local file path directly for terminal & TUI apps.",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    },
+    "default_title": "Screenshot TUIF"
+  },
+  "background": {
+    "service_worker": "background/service-worker.js"
+  },
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "downloads",
+    "storage",
+    "unlimitedStorage",
+    "scripting",
+    "clipboardWrite"
+  ],
+  "commands": {
+    "capture_visible": {
+      "suggested_key": {
+        "default": "Alt+Shift+S",
+        "mac": "Alt+Shift+S"
+      },
+      "description": "Capture visible tab and open annotator"
+    },
+    "capture_area": {
+      "suggested_key": {
+        "default": "Alt+Shift+A",
+        "mac": "Alt+Shift+A"
+      },
+      "description": "Select area to capture and annotate"
+    }
+  }
+}
