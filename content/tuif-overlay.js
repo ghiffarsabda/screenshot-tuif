@@ -15,6 +15,14 @@
     window.__TUIF_CLEANUP__();
   }
 
+  // Define global launcher to always run the latest version
+  window.__TUIF_LAUNCH__ = function(config) {
+    if (window.__TUIF_CLEANUP__) {
+      window.__TUIF_CLEANUP__();
+    }
+    openTuifOverlay(config);
+  };
+
   // Prevent multiple message listener registrations
   if (!window.__TUIF_LISTENER_REGISTERED__) {
     window.__TUIF_LISTENER_REGISTERED__ = true;
@@ -26,17 +34,32 @@
         }
         sendResponse({ success: true });
       } else if (message.type === 'ACTIVATE_TUIF_OVERLAY') {
-        if (window.__TUIF_CLEANUP__) {
-          window.__TUIF_CLEANUP__();
+        if (window.__TUIF_LAUNCH__) {
+          window.__TUIF_LAUNCH__(message);
         }
-        openTuifOverlay(message.dataUrl);
         sendResponse({ success: true });
       }
       return true;
     });
   }
 
-  function openTuifOverlay(dataUrl) {
+  function openTuifOverlay(config) {
+    const dataUrl = typeof config === 'string' ? config : (config?.dataUrl || '');
+    const downloadsDir = (typeof config === 'object' && config?.downloadsDir) ? config.downloadsDir : '/home/ghiffar-sabda/Downloads';
+    const subfolder = (typeof config === 'object' && config?.subfolder) ? config.subfolder : 'screenshot-tuif';
+    const copyFormat = (typeof config === 'object' && config?.copyFormat) ? config.copyFormat : 'filepath';
+
+    function formatPath(path, format) {
+      if (format === 'directory') {
+        const idx = path.lastIndexOf('/');
+        return idx !== -1 ? path.slice(0, idx) : path;
+      } else if (format === 'markdown') {
+        return `![screenshot](${path})`;
+      } else if (format === 'quoted') {
+        return `"${path}"`;
+      }
+      return path;
+    }
     const dpr = window.devicePixelRatio || 1;
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -501,38 +524,43 @@
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
 
-    // Bulletproof Clipboard Copy in Foreground
-    async function copyTextToClipboardForeground(text) {
-      let copied = false;
+    // Immediate Synchronous & Multi-method Clipboard Writer
+    function writeClipboardImmediate(text) {
+      let success = false;
+
+      // Method 1: execCommand on clean textarea in document.body
       try {
-        await navigator.clipboard.writeText(text);
-        copied = true;
-      } catch (err) {
-        // Fallback using textarea inside overlay
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = text;
-          ta.style.position = 'fixed';
-          ta.style.opacity = '0';
-          ta.style.left = '-9999px';
-          container.appendChild(ta);
-          ta.focus();
-          ta.select();
-          ta.setSelectionRange(0, 9999999);
-          copied = document.execCommand('copy');
-          ta.remove();
-        } catch (_) {}
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.contain = 'strict';
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ta.setSelectionRange(0, 999999);
+        success = document.execCommand('copy');
+        ta.remove();
+      } catch (_) {}
+
+      // Method 2: Modern navigator.clipboard API (fully valid during user gesture)
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          success = true;
+        }).catch(() => {});
       }
 
-      // Also request background offscreen document to write clipboard (failsafe)
+      // Method 3: Request background offscreen document as asynchronous backup
       try {
         chrome.runtime.sendMessage({
-          type: 'FORCE_CLIPBOARD_WRITE',
+          target: 'tuif-offscreen-clipboard',
           text: text
         });
       } catch (_) {}
 
-      return copied;
+      return success;
     }
 
     // Clean teardown helper that strips all window listeners
@@ -568,29 +596,36 @@
       btnCopy.style.opacity = '0.5';
 
       try {
-        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const ms = String(now.getMilliseconds()).padStart(3, '0');
+        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}_${ms}`;
+        const relFilename = `${subfolder}/ephemeral/screenshot_${dateStr}.png`;
+        const absFilePath = `${downloadsDir}/${relFilename}`;
+        const pathToCopy = formatPath(absFilePath, copyFormat);
 
-        const response = await chrome.runtime.sendMessage({
+        // 1. Write to OS clipboard IMMEDIATELY and SYNCHRONOUSLY
+        writeClipboardImmediate(pathToCopy);
+
+        // Immediate feedback
+        toastTitle.textContent = 'Screenshot path copied! (Ctrl+C)';
+        toastPath.textContent = pathToCopy;
+        toast.classList.add('show');
+
+        // 2. Save image to disk in background
+        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        chrome.runtime.sendMessage({
           type: 'COPY_EPHEMERAL',
-          dataUrl: fullDataUrl
+          dataUrl: fullDataUrl,
+          relFilename: relFilename,
+          absPath: absFilePath,
+          textToCopy: pathToCopy
         });
 
-        if (response && response.success && response.path) {
-          const pathToCopy = response.path;
-          await copyTextToClipboardForeground(pathToCopy);
+        setTimeout(() => {
+          closeOverlay();
+        }, 1200);
 
-          toastTitle.textContent = 'Screenshot path copied! (Ctrl+C)';
-          toastPath.textContent = pathToCopy;
-          toast.classList.add('show');
-
-          setTimeout(() => {
-            closeOverlay();
-          }, 1600);
-        } else {
-          toastTitle.textContent = 'Copy Failed';
-          toastPath.textContent = response?.error || 'Unknown error';
-          toast.classList.add('show');
-        }
       } catch (err) {
         console.error('Error in copy action:', err);
       } finally {
@@ -633,7 +668,15 @@
           return;
         }
 
-        // Build code block text template with placeholder for screenshot path
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const ms = String(now.getMilliseconds()).padStart(3, '0');
+        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}_${ms}`;
+        const relFilename = `${subfolder}/ephemeral/screenshot_${dateStr}.png`;
+        const absFilePath = `${downloadsDir}/${relFilename}`;
+        const imagePath = formatPath(absFilePath, copyFormat);
+
+        // Build code block text
         let codeBlock = '';
         if (components.length === 1) {
           const comp = components[0];
@@ -657,29 +700,29 @@
           });
         }
 
-        const templateText = `__SCREENSHOT_PATH_PLACEHOLDER__\n\n${codeBlock.trim()}`;
+        const finalText = `${imagePath}\n\n${codeBlock.trim()}`;
 
-        // Save annotated screenshot to ephemeral storage and write to clipboard in background & foreground
-        const fullDataUrl = baseCanvas.toDataURL('image/png');
-        const response = await chrome.runtime.sendMessage({
-          type: 'COPY_EPHEMERAL',
-          dataUrl: fullDataUrl,
-          customClipboardText: templateText
-        });
-
-        const imagePath = response?.path || '';
-        const finalText = templateText.replace('__SCREENSHOT_PATH_PLACEHOLDER__', imagePath).trim();
-
-        await copyTextToClipboardForeground(finalText);
+        // 1. Write to OS clipboard IMMEDIATELY and SYNCHRONOUSLY
+        writeClipboardImmediate(finalText);
 
         toastTitle.textContent = `Component Code Copied! (Ctrl+Shift+C)`;
         const tagPreview = components.map(c => `<${c.element.tagName.toLowerCase()}>`).join(', ');
         toastPath.textContent = `Copied ${components.length} component block(s): ${tagPreview}`;
         toast.classList.add('show');
 
+        // 2. Save annotated screenshot to ephemeral storage in background
+        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        chrome.runtime.sendMessage({
+          type: 'COPY_EPHEMERAL',
+          dataUrl: fullDataUrl,
+          relFilename: relFilename,
+          absPath: absFilePath,
+          textToCopy: finalText
+        });
+
         setTimeout(() => {
           closeOverlay();
-        }, 1800);
+        }, 1500);
 
       } catch (err) {
         console.error('Error copying component code:', err);
@@ -703,29 +746,34 @@
       btnDownload.style.opacity = '0.5';
 
       try {
-        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        const now = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const ms = String(now.getMilliseconds()).padStart(3, '0');
+        const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}_${ms}`;
+        const relFilename = `${subfolder}/screenshot_${dateStr}.png`;
+        const absFilePath = `${downloadsDir}/${relFilename}`;
+        const pathToCopy = formatPath(absFilePath, copyFormat);
 
-        const response = await chrome.runtime.sendMessage({
+        // Immediate synchronous write
+        writeClipboardImmediate(pathToCopy);
+
+        toastTitle.textContent = 'Saved permanently & path copied!';
+        toastPath.textContent = pathToCopy;
+        toast.classList.add('show');
+
+        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        chrome.runtime.sendMessage({
           type: 'DOWNLOAD_PERMANENT',
-          dataUrl: fullDataUrl
+          dataUrl: fullDataUrl,
+          relFilename: relFilename,
+          absPath: absFilePath,
+          textToCopy: pathToCopy
         });
 
-        if (response && response.success && response.path) {
-          const pathToCopy = response.path;
-          await copyTextToClipboardForeground(pathToCopy);
+        setTimeout(() => {
+          closeOverlay();
+        }, 1500);
 
-          toastTitle.textContent = 'Saved permanently & path copied for terminal!';
-          toastPath.textContent = pathToCopy;
-          toast.classList.add('show');
-
-          setTimeout(() => {
-            closeOverlay();
-          }, 1800);
-        } else {
-          toastTitle.textContent = 'Download Failed';
-          toastPath.textContent = response?.error || 'Unknown error';
-          toast.classList.add('show');
-        }
       } catch (err) {
         console.error('Error downloading:', err);
       } finally {
@@ -756,8 +804,9 @@
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         redo();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C' || e.code === 'KeyC')) {
         e.preventDefault();
+        e.stopPropagation();
         if (e.shiftKey) {
           handleCopyComponentCode();
         } else {
@@ -765,6 +814,7 @@
         }
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && !e.altKey) {
         e.preventDefault();
+        e.stopPropagation();
         handleDownload();
       }
     }

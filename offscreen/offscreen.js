@@ -1,24 +1,31 @@
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.type === 'OFFSCREEN_CLIPBOARD_WRITE') {
-    (async () => {
-      const text = message.text || '';
-      try {
-        await navigator.clipboard.writeText(text);
-        sendResponse({ success: true });
-      } catch (err) {
-        try {
-          const textarea = document.getElementById('clipboard-textarea');
-          textarea.value = text;
-          textarea.focus();
-          textarea.select();
-          const ok = document.execCommand('copy');
-          sendResponse({ success: ok });
-        } catch (fallbackErr) {
-          console.error('All offscreen copy methods failed:', fallbackErr);
-          sendResponse({ success: false, error: fallbackErr.message });
-        }
+  if (message && message.target === 'tuif-offscreen-clipboard') {
+    const text = message.text || '';
+    let success = false;
+
+    // Method 1: document.execCommand('copy') on textarea (standard for MV3 offscreen)
+    try {
+      const textarea = document.getElementById('clipboard-textarea');
+      if (textarea) {
+        textarea.value = text;
+        textarea.select();
+        success = document.execCommand('copy');
       }
-    })();
+    } catch (err) {
+      console.warn('execCommand failed in offscreen:', err);
+    }
+
+    // Method 2: navigator.clipboard fallback
+    if (!success && navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        sendResponse({ success: true });
+      }).catch(err => {
+        sendResponse({ success: false, error: err.message });
+      });
+      return true;
+    }
+
+    sendResponse({ success });
     return true;
   }
 });
