@@ -229,27 +229,31 @@
   color: #ffffff !important;
 }
 
-/* Toast Notification */
+/* Red Pill Notification */
 #tuif-toast {
   position: absolute !important;
-  bottom: 84px !important;
+  bottom: 86px !important;
   left: 50% !important;
-  transform: translateX(-50%) translateY(20px) !important;
+  transform: translateX(-50%) translateY(14px) !important;
   opacity: 0 !important;
-  background: rgba(24, 24, 27, 0.98) !important;
+  background: #EF4444 !important;
   color: #ffffff !important;
-  border: 1px solid rgba(255, 255, 255, 0.18) !important;
-  border-radius: 10px !important;
-  padding: 10px 16px !important;
-  font-size: 12px !important;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.6) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 9999px !important;
+  padding: 8px 20px !important;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  letter-spacing: 0.2px !important;
+  line-height: 1 !important;
+  box-shadow: 0 4px 18px rgba(239, 68, 68, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35) !important;
   display: flex !important;
   align-items: center !important;
-  gap: 10px !important;
-  max-width: 680px !important;
+  justify-content: center !important;
   pointer-events: none !important;
   z-index: 2147483647 !important;
-  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+  white-space: nowrap !important;
 }
 
 #tuif-toast.show {
@@ -257,35 +261,9 @@
   transform: translateX(-50%) translateY(0) !important;
 }
 
-.tuif-toast-icon {
-  width: 20px !important;
-  height: 20px !important;
-  border-radius: 50% !important;
-  background: #10b981 !important;
+#tuif-toast-text {
   color: #ffffff !important;
-  display: flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  font-size: 11px !important;
-  font-weight: bold !important;
-  flex-shrink: 0 !important;
-}
-
-.tuif-toast-body {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: 2px !important;
-}
-
-.tuif-toast-title {
+  font-size: 13px !important;
   font-weight: 600 !important;
-  font-size: 12px !important;
-  color: #f4f4f5 !important;
-}
-
-.tuif-toast-path {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
-  color: #34d399 !important;
-  font-size: 11px !important;
-  word-break: break-all !important;
+  user-select: none !important;
 }

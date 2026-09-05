@@ -146,13 +146,9 @@
         </button>
       </div>
 
-      <!-- Toast Feedback -->
+      <!-- Red Pill Notification -->
       <div id="tuif-toast">
-        <div class="tuif-toast-icon">✓</div>
-        <div class="tuif-toast-body">
-          <div class="tuif-toast-title" id="tuif-toast-title">Copied to clipboard!</div>
-          <div class="tuif-toast-path" id="tuif-toast-path"></div>
-        </div>
+        <span id="tuif-toast-text">Image Copied</span>
       </div>
     `;
 
@@ -182,8 +178,17 @@
     const btnModeSelect = container.querySelector('#tuif-mode-select');
 
     const toast = container.querySelector('#tuif-toast');
-    const toastTitle = container.querySelector('#tuif-toast-title');
-    const toastPath = container.querySelector('#tuif-toast-path');
+    const toastText = container.querySelector('#tuif-toast-text');
+
+    function showToast(text, duration = 1200) {
+      if (toastText) toastText.textContent = text;
+      toast.classList.add('show');
+      if (duration) {
+        setTimeout(() => {
+          toast.classList.remove('show');
+        }, duration);
+      }
+    }
 
     // Fresh isolated state per capture
     let currentMode = 'select';
@@ -607,10 +612,8 @@
         // 1. Write to OS clipboard IMMEDIATELY and SYNCHRONOUSLY
         writeClipboardImmediate(pathToCopy);
 
-        // Immediate feedback
-        toastTitle.textContent = 'Screenshot path copied! (Ctrl+C)';
-        toastPath.textContent = pathToCopy;
-        toast.classList.add('show');
+        // Immediate feedback: simple red pill saying "Image Copied"
+        showToast('Image Copied');
 
         // 2. Save image to disk in background
         const fullDataUrl = baseCanvas.toDataURL('image/png');
@@ -624,7 +627,7 @@
 
         setTimeout(() => {
           closeOverlay();
-        }, 1200);
+        }, 1100);
 
       } catch (err) {
         console.error('Error in copy action:', err);
@@ -661,10 +664,7 @@
         }
 
         if (components.length === 0) {
-          toastTitle.textContent = 'No Component Selected';
-          toastPath.textContent = 'Select a component first (Click elements on the page).';
-          toast.classList.add('show');
-          setTimeout(() => toast.classList.remove('show'), 2500);
+          showToast('No Component Selected', 1800);
           return;
         }
 
@@ -705,10 +705,8 @@
         // 1. Write to OS clipboard IMMEDIATELY and SYNCHRONOUSLY
         writeClipboardImmediate(finalText);
 
-        toastTitle.textContent = `Component Code Copied! (Ctrl+Shift+C)`;
-        const tagPreview = components.map(c => `<${c.element.tagName.toLowerCase()}>`).join(', ');
-        toastPath.textContent = `Copied ${components.length} component block(s): ${tagPreview}`;
-        toast.classList.add('show');
+        // Immediate feedback: simple red pill saying "Code Block Copied"
+        showToast('Code Block Copied');
 
         // 2. Save annotated screenshot to ephemeral storage in background
         const fullDataUrl = baseCanvas.toDataURL('image/png');
@@ -722,13 +720,11 @@
 
         setTimeout(() => {
           closeOverlay();
-        }, 1500);
+        }, 1100);
 
       } catch (err) {
         console.error('Error copying component code:', err);
-        toastTitle.textContent = 'Copy Code Failed';
-        toastPath.textContent = err.message;
-        toast.classList.add('show');
+        showToast('Copy Code Failed', 1800);
       } finally {
         btnCopyCode.disabled = false;
         btnCopyCode.style.opacity = '1';
@@ -757,9 +753,8 @@
         // Immediate synchronous write
         writeClipboardImmediate(pathToCopy);
 
-        toastTitle.textContent = 'Saved permanently & path copied!';
-        toastPath.textContent = pathToCopy;
-        toast.classList.add('show');
+        // Immediate feedback: simple red pill saying "Image Downloaded"
+        showToast('Image Downloaded');
 
         const fullDataUrl = baseCanvas.toDataURL('image/png');
         chrome.runtime.sendMessage({
@@ -772,10 +767,11 @@
 
         setTimeout(() => {
           closeOverlay();
-        }, 1500);
+        }, 1100);
 
       } catch (err) {
         console.error('Error downloading:', err);
+        showToast('Download Failed', 1800);
       } finally {
         btnDownload.disabled = false;
         btnDownload.style.opacity = '1';
