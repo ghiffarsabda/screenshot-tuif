@@ -1,6 +1,8 @@
 /**
  * Screenshot TUIF - In-Page Overlay Script
- * Activates directly on the current tab without opening any new page or popup.
+ * Two annotation options:
+ * 1. Freehand Draw (draw over manually with red pen)
+ * 2. Component Select (hover on webpage components and click to box them in red, multiple selection supported)
  */
 
 (() => {
@@ -30,6 +32,7 @@
       <canvas id="tuif-base-canvas"></canvas>
       <canvas id="tuif-preview-canvas"></canvas>
       <div id="tuif-frame"></div>
+      <div id="tuif-component-tag"></div>
       
       <!-- Top Right Close Button -->
       <button id="tuif-close-btn" title="Close (Esc)">
@@ -41,6 +44,26 @@
 
       <!-- Bottom Floating Pill Toolbar -->
       <div id="tuif-pill-toolbar">
+        <!-- Mode Switcher: Draw vs Component Select -->
+        <div class="tuif-mode-group">
+          <button class="tuif-mode-btn active" id="tuif-mode-draw" title="Manual Draw (D)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 19l7-7 3 3-7 7-3-3z"></path>
+              <path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"></path>
+            </svg>
+            <span>Draw</span>
+          </button>
+          <button class="tuif-mode-btn" id="tuif-mode-select" title="Select Component (S)">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" stroke-dasharray="3 3"></rect>
+              <circle cx="12" cy="12" r="3"></circle>
+            </svg>
+            <span>Select Component</span>
+          </button>
+        </div>
+
+        <div class="tuif-toolbar-divider"></div>
+
         <!-- Undo -->
         <button class="tuif-pill-btn" id="tuif-btn-undo" title="Undo (Ctrl+Z)" disabled>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -57,7 +80,7 @@
           </svg>
         </button>
 
-        <!-- Copy (Saves to Ephemeral directory & copies path) -->
+        <!-- Copy (Ephemeral & copies path) -->
         <button class="tuif-pill-btn" id="tuif-btn-copy" title="Copy Ephemeral Path for Terminal (Ctrl+C)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
@@ -65,7 +88,7 @@
           </svg>
         </button>
 
-        <!-- Download (Saves permanently to Downloads & copies path) -->
+        <!-- Download (Permanent & copies path) -->
         <button class="tuif-pill-btn" id="tuif-btn-download" title="Save Permanently & Copy Path (Ctrl+S)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
@@ -91,6 +114,7 @@
     const previewCanvas = container.querySelector('#tuif-preview-canvas');
     const baseCtx = baseCanvas.getContext('2d');
     const previewCtx = previewCanvas.getContext('2d');
+    const componentTag = container.querySelector('#tuif-component-tag');
 
     baseCanvas.width = Math.round(width * dpr);
     baseCanvas.height = Math.round(height * dpr);
@@ -105,14 +129,22 @@
     const btnRedo = container.querySelector('#tuif-btn-redo');
     const btnCopy = container.querySelector('#tuif-btn-copy');
     const btnDownload = container.querySelector('#tuif-btn-download');
+    const btnModeDraw = container.querySelector('#tuif-mode-draw');
+    const btnModeSelect = container.querySelector('#tuif-mode-select');
+
     const toast = container.querySelector('#tuif-toast');
     const toastTitle = container.querySelector('#tuif-toast-title');
     const toastPath = container.querySelector('#tuif-toast-path');
 
-    const currentColor = '#EF4444'; // Red default
+    // Mode: 'draw' or 'select'
+    let currentMode = 'draw';
+    const annotationColor = '#EF4444'; // Red default
     const strokeWidth = 3.5;
+
     let isDrawing = false;
     let points = [];
+    let hoveredElement = null;
+    let hoveredRect = null;
 
     const undoStack = [];
     const redoStack = [];
@@ -147,6 +179,7 @@
       updateHistoryButtons();
     }
 
+    // Load frozen captured image
     const img = new Image();
     img.onload = () => {
       baseCtx.drawImage(img, 0, 0, width, height);
@@ -154,14 +187,50 @@
     };
     img.src = dataUrl;
 
-    function getPoint(e) {
-      return { x: e.clientX, y: e.clientY };
+    // Mode Switcher
+    function setMode(mode) {
+      currentMode = mode;
+      btnModeDraw.classList.toggle('active', mode === 'draw');
+      btnModeSelect.classList.toggle('active', mode === 'select');
+      container.classList.toggle('mode-select', mode === 'select');
+
+      previewCtx.clearRect(0, 0, width, height);
+      componentTag.style.display = 'none';
+      hoveredElement = null;
+      hoveredRect = null;
     }
 
+    btnModeDraw.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMode('draw');
+    });
+
+    btnModeSelect.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMode('select');
+    });
+
+    // Detect Webpage Component Under Cursor
+    function getComponentAtPoint(clientX, clientY) {
+      const elements = document.elementsFromPoint(clientX, clientY);
+      for (const el of elements) {
+        if (!el || container.contains(el) || el === container) continue;
+        if (el === document.documentElement || el === document.body) continue;
+
+        // Skip microscopic or purely transparent containers
+        const rect = el.getBoundingClientRect();
+        if (rect.width >= 12 && rect.height >= 12) {
+          return { element: el, rect: rect };
+        }
+      }
+      return null;
+    }
+
+    // Draw manual stroke
     function drawStroke(ctx, pts) {
       if (pts.length === 0) return;
       ctx.save();
-      ctx.strokeStyle = currentColor;
+      ctx.strokeStyle = annotationColor;
       ctx.lineWidth = strokeWidth;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
@@ -180,29 +249,130 @@
       ctx.restore();
     }
 
+    // Draw Permanent Red Box on Selected Component
+    function drawComponentBox(rect) {
+      baseCtx.save();
+      baseCtx.strokeStyle = annotationColor;
+      baseCtx.lineWidth = 3;
+      baseCtx.lineJoin = 'round';
+
+      const pad = 2;
+      const x = Math.max(0, rect.left - pad);
+      const y = Math.max(0, rect.top - pad);
+      const w = rect.width + pad * 2;
+      const h = rect.height + pad * 2;
+
+      if (baseCtx.roundRect) {
+        baseCtx.beginPath();
+        baseCtx.roundRect(x, y, w, h, 4);
+        baseCtx.stroke();
+        baseCtx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+        baseCtx.fill();
+      } else {
+        baseCtx.strokeRect(x, y, w, h);
+        baseCtx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+        baseCtx.fillRect(x, y, w, h);
+      }
+      baseCtx.restore();
+
+      pushHistory();
+    }
+
+    // Canvas Events
     previewCanvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
-      isDrawing = true;
-      const pt = getPoint(e);
-      points = [pt];
-      drawStroke(previewCtx, points);
+
+      if (currentMode === 'draw') {
+        isDrawing = true;
+        points = [{ x: e.clientX, y: e.clientY }];
+        drawStroke(previewCtx, points);
+      } else if (currentMode === 'select') {
+        const found = getComponentAtPoint(e.clientX, e.clientY);
+        if (found && found.rect) {
+          drawComponentBox(found.rect);
+
+          // Flash confirmation in preview
+          previewCtx.clearRect(0, 0, width, height);
+          previewCtx.save();
+          previewCtx.strokeStyle = '#22c55e';
+          previewCtx.lineWidth = 3.5;
+          previewCtx.strokeRect(found.rect.left - 2, found.rect.top - 2, found.rect.width + 4, found.rect.height + 4);
+          previewCtx.restore();
+          setTimeout(() => {
+            previewCtx.clearRect(0, 0, width, height);
+          }, 180);
+        }
+      }
     });
 
     window.addEventListener('mousemove', (e) => {
-      if (!isDrawing) return;
-      const pt = getPoint(e);
-      points.push(pt);
-      previewCtx.clearRect(0, 0, width, height);
-      drawStroke(previewCtx, points);
+      if (currentMode === 'draw') {
+        if (!isDrawing) return;
+        points.push({ x: e.clientX, y: e.clientY });
+        previewCtx.clearRect(0, 0, width, height);
+        drawStroke(previewCtx, points);
+      } else if (currentMode === 'select') {
+        // If hovering on top of toolbar or buttons, do not inspect
+        if (e.target && (e.target.closest('#tuif-pill-toolbar') || e.target.closest('#tuif-close-btn'))) {
+          previewCtx.clearRect(0, 0, width, height);
+          componentTag.style.display = 'none';
+          hoveredElement = null;
+          hoveredRect = null;
+          return;
+        }
+
+        const found = getComponentAtPoint(e.clientX, e.clientY);
+        if (found) {
+          hoveredElement = found.element;
+          hoveredRect = found.rect;
+
+          previewCtx.clearRect(0, 0, width, height);
+          previewCtx.save();
+          previewCtx.strokeStyle = annotationColor;
+          previewCtx.lineWidth = 2.5;
+          previewCtx.setLineDash([6, 4]);
+
+          const pad = 2;
+          const x = hoveredRect.left - pad;
+          const y = hoveredRect.top - pad;
+          const w = hoveredRect.width + pad * 2;
+          const h = hoveredRect.height + pad * 2;
+
+          previewCtx.strokeRect(x, y, w, h);
+          previewCtx.fillStyle = 'rgba(239, 68, 68, 0.12)';
+          previewCtx.fillRect(x, y, w, h);
+          previewCtx.restore();
+
+          // Component Tag Badge
+          const tag = hoveredElement.tagName.toLowerCase();
+          const className = typeof hoveredElement.className === 'string' && hoveredElement.className
+            ? '.' + hoveredElement.className.trim().split(/\s+/)[0]
+            : '';
+          const id = hoveredElement.id ? '#' + hoveredElement.id : '';
+          componentTag.textContent = `<${tag}${id}${className}> ${Math.round(hoveredRect.width)} × ${Math.round(hoveredRect.height)}`;
+
+          const tagTop = hoveredRect.top > 26 ? hoveredRect.top - 24 : hoveredRect.bottom + 6;
+          const tagLeft = Math.max(8, Math.min(window.innerWidth - 220, hoveredRect.left));
+          componentTag.style.top = `${tagTop}px`;
+          componentTag.style.left = `${tagLeft}px`;
+          componentTag.style.display = 'block';
+        } else {
+          previewCtx.clearRect(0, 0, width, height);
+          componentTag.style.display = 'none';
+          hoveredElement = null;
+          hoveredRect = null;
+        }
+      }
     });
 
     window.addEventListener('mouseup', () => {
-      if (!isDrawing) return;
-      isDrawing = false;
-      previewCtx.clearRect(0, 0, width, height);
-      drawStroke(baseCtx, points);
-      points = [];
-      pushHistory();
+      if (currentMode === 'draw' && isDrawing) {
+        isDrawing = false;
+        previewCtx.clearRect(0, 0, width, height);
+        drawStroke(baseCtx, points);
+        points = [];
+        pushHistory();
+      }
     });
 
     function closeOverlay() {
@@ -330,6 +500,10 @@
     function onKeyDown(e) {
       if (e.key === 'Escape') {
         closeOverlay();
+      } else if (e.key === 'd' || e.key === 'D') {
+        setMode('draw');
+      } else if (e.key === 's' || e.key === 'S') {
+        setMode('select');
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         e.preventDefault();
         undo();
@@ -339,7 +513,7 @@
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) {
         e.preventDefault();
         handleCopy();
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S')) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
         e.preventDefault();
         handleDownload();
       }

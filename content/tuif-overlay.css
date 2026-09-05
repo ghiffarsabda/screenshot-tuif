@@ -1,4 +1,4 @@
-/* Screenshot TUIF - In-Page Overlay Styles */
+/* Screenshot TUIF - In-Page Overlay Styles with Component Selection */
 
 #tuif-overlay-container {
   position: fixed !important;
@@ -11,6 +11,10 @@
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif !important;
   overflow: hidden !important;
   cursor: crosshair !important;
+}
+
+#tuif-overlay-container.mode-select {
+  cursor: pointer !important;
 }
 
 /* Background image frozen from viewport */
@@ -48,6 +52,23 @@
   pointer-events: none !important;
   box-sizing: border-box !important;
   z-index: 2147483647 !important;
+}
+
+/* Component Tag Tooltip */
+#tuif-component-tag {
+  position: absolute !important;
+  background: rgba(24, 24, 27, 0.95) !important;
+  color: #f87171 !important;
+  border: 1px solid rgba(239, 68, 68, 0.4) !important;
+  border-radius: 4px !important;
+  padding: 2px 7px !important;
+  font-size: 11px !important;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace !important;
+  pointer-events: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important;
+  z-index: 2147483647 !important;
+  white-space: nowrap !important;
+  display: none !important;
 }
 
 /* Close Button (Top Right) */
@@ -91,15 +112,59 @@
   background: rgba(28, 32, 40, 0.95) !important;
   backdrop-filter: blur(14px) !important;
   -webkit-backdrop-filter: blur(14px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
   border-radius: 30px !important;
   height: 48px !important;
-  padding: 0 12px !important;
+  padding: 0 10px !important;
   display: flex !important;
   align-items: center !important;
-  gap: 8px !important;
+  gap: 6px !important;
   box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55), 0 2px 8px rgba(0, 0, 0, 0.3) !important;
   z-index: 2147483647 !important;
+}
+
+/* Mode Switcher Group */
+.tuif-mode-group {
+  display: flex !important;
+  align-items: center !important;
+  background: rgba(15, 23, 42, 0.6) !important;
+  border-radius: 20px !important;
+  padding: 2px !important;
+  gap: 2px !important;
+}
+
+.tuif-mode-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 5px !important;
+  padding: 5px 10px !important;
+  border-radius: 16px !important;
+  border: none !important;
+  background: transparent !important;
+  color: #94a3b8 !important;
+  font-size: 11.5px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  outline: none !important;
+}
+
+.tuif-mode-btn:hover {
+  color: #ffffff !important;
+}
+
+.tuif-mode-btn.active {
+  background: #ef4444 !important;
+  color: #ffffff !important;
+  box-shadow: 0 2px 8px rgba(239, 68, 68, 0.4) !important;
+}
+
+/* Toolbar Divider */
+.tuif-toolbar-divider {
+  width: 1px !important;
+  height: 20px !important;
+  background: rgba(255, 255, 255, 0.15) !important;
+  margin: 0 4px !important;
 }
 
 /* Pill Action Buttons */
