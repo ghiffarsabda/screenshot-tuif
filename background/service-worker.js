@@ -1,8 +1,6 @@
 /**
  * Screenshot TUIF - Service Worker (Manifest V3)
- * Handles instant in-page capture on icon click and terminal path resolution.
- * - Copy: Saves to ephemeral directory, auto-deleting previous copied screenshots.
- * - Download: Saves permanently to downloads and still copies path to clipboard.
+ * Handles in-page capture, ephemeral cleanup, permanent download, and bulletproof offscreen clipboard writes.
  */
 
 // Trigger immediately on extension action icon click
@@ -32,8 +30,19 @@ async function activateInPageOverlay(tab) {
   }
 
   try {
+    // 1. If an existing overlay is open on the tab, close it before capturing!
+    try {
+      await chrome.tabs.sendMessage(tab.id, { type: 'CLOSE_TUIF_OVERLAY' });
+      // Brief pause to allow DOM update
+      await new Promise(r => setTimeout(r, 40));
+    } catch (_) {
+      // Tab may not have overlay injected yet
+    }
+
+    // 2. Capture clean current tab view
     const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, { format: 'png' });
 
+    // 3. Inject CSS and JS
     await chrome.scripting.insertCSS({
       target: { tabId: tab.id },
       files: ['content/tuif-overlay.css']
@@ -44,12 +53,38 @@ async function activateInPageOverlay(tab) {
       files: ['content/tuif-overlay.js']
     });
 
+    // 4. Send captured screenshot to content script
     await chrome.tabs.sendMessage(tab.id, {
       type: 'ACTIVATE_TUIF_OVERLAY',
       dataUrl: dataUrl
     });
   } catch (error) {
     console.error('Failed to activate TUIF overlay:', error);
+  }
+}
+
+// Ensure offscreen document exists for reliable clipboard write
+async function writeClipboardViaOffscreen(text) {
+  if (!text) return;
+  try {
+    const existingContexts = await chrome.runtime.getContexts({
+      contextTypes: ['OFFSCREEN_DOCUMENT']
+    });
+
+    if (!existingContexts || existingContexts.length === 0) {
+      await chrome.offscreen.createDocument({
+        url: 'offscreen/offscreen.html',
+        reasons: ['CLIPBOARD'],
+        justification: 'Reliable clipboard write for screenshot path and component code'
+      });
+    }
+
+    await chrome.runtime.sendMessage({
+      type: 'OFFSCREEN_CLIPBOARD_WRITE',
+      text: text
+    });
+  } catch (e) {
+    console.warn('Offscreen clipboard writing issue:', e);
   }
 }
 
@@ -62,7 +97,6 @@ async function cleanupPreviousEphemeral() {
         await chrome.downloads.removeFile(id);
         await chrome.downloads.erase({ id });
       } catch (e) {
-        // File may have already been moved or deleted
         console.warn('Could not remove previous ephemeral download:', id, e);
       }
     }
@@ -76,7 +110,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
       const now = new Date();
       const pad = n => String(n).padStart(2, '0');
-      const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+      const ms = String(now.getMilliseconds()).padStart(3, '0');
+      const dateStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}_${ms}`;
       
       const stored = await chrome.storage.local.get(['subfolder', 'copyFormat']);
       const subfolder = stored.subfolder || 'screenshot-tuif';
@@ -102,11 +137,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const absolutePath = await waitForDownloadComplete(downloadId);
         const formattedPath = formatPath(absolutePath, copyFormat);
 
+        // If message provided custom text (e.g. Component Code Block), use that for clipboard
+        const textToCopy = message.customClipboardText
+          ? message.customClipboardText.replace('__SCREENSHOT_PATH_PLACEHOLDER__', formattedPath)
+          : formattedPath;
+
+        // 5. Write to clipboard via offscreen document (failsafe)
+        await writeClipboardViaOffscreen(textToCopy);
+
         await saveRecentCapture(absolutePath);
-        sendResponse({ success: true, path: formattedPath, rawPath: absolutePath, isEphemeral: true });
+        sendResponse({ success: true, path: formattedPath, fullText: textToCopy, rawPath: absolutePath, isEphemeral: true });
 
       } else if (message.type === 'DOWNLOAD_PERMANENT') {
-        // Save permanently to main download folder (not tracked in ephemeral list)
+        // Save permanently to main download folder
         const filename = `${subfolder}/screenshot_${dateStr}.png`;
         const downloadId = await chrome.downloads.download({
           url: message.dataUrl,
@@ -115,12 +158,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           conflictAction: 'uniquify'
         });
 
-        // Await download completion and also retrieve path so user can paste it!
         const absolutePath = await waitForDownloadComplete(downloadId);
         const formattedPath = formatPath(absolutePath, copyFormat);
 
+        // Write to clipboard via offscreen document (failsafe)
+        await writeClipboardViaOffscreen(formattedPath);
+
         await saveRecentCapture(absolutePath);
         sendResponse({ success: true, path: formattedPath, rawPath: absolutePath, isPermanent: true });
+
+      } else if (message.type === 'FORCE_CLIPBOARD_WRITE') {
+        await writeClipboardViaOffscreen(message.text);
+        sendResponse({ success: true });
       }
     } catch (err) {
       console.error('Error handling background task:', err);

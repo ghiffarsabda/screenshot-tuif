@@ -1,36 +1,42 @@
 /**
  * Screenshot TUIF - In-Page Overlay Script
- * Two annotation options:
- * 1. Component Select (Default, on the left):
- *    - Hover to inspect components.
- *    - Click to create crisp red outline boxes (no fill).
- *    - Click the same component twice to DESELECT it!
- *    - Multi-select supported.
- * 2. Freehand Draw (on the right):
- *    - Draw over manually with the red pen.
- * 
- * Copy options:
+ * Features:
+ * - Select Component (Default, on the left) with hover inspect & click to box in red (no fill)
+ * - Click same component twice to deselect
+ * - Draw mode with red pen (on the right)
  * - Ctrl+C: Copy screenshot image path (ephemeral, auto-cleaning)
- * - Ctrl+Shift+C: Copy component code block (with screenshot path + exact HTML markup)
- * - Ctrl+S: Permanent download (also copies path)
+ * - Ctrl+Shift+C: Copy component code block + screenshot path
+ * - Failsafe dual-layer clipboard write (offscreen + foreground) to eliminate stale paste bugs
  */
 
 (() => {
-  if (window.__TUIF_INITIALIZED__) return;
-  window.__TUIF_INITIALIZED__ = true;
+  // Always clean up any existing instance before initializing
+  if (window.__TUIF_CLEANUP__) {
+    window.__TUIF_CLEANUP__();
+  }
 
-  chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    if (message.type === 'ACTIVATE_TUIF_OVERLAY') {
-      openTuifOverlay(message.dataUrl);
-      sendResponse({ success: true });
-    }
-    return true;
-  });
+  // Prevent multiple message listener registrations
+  if (!window.__TUIF_LISTENER_REGISTERED__) {
+    window.__TUIF_LISTENER_REGISTERED__ = true;
+
+    chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+      if (message.type === 'CLOSE_TUIF_OVERLAY') {
+        if (window.__TUIF_CLEANUP__) {
+          window.__TUIF_CLEANUP__();
+        }
+        sendResponse({ success: true });
+      } else if (message.type === 'ACTIVATE_TUIF_OVERLAY') {
+        if (window.__TUIF_CLEANUP__) {
+          window.__TUIF_CLEANUP__();
+        }
+        openTuifOverlay(message.dataUrl);
+        sendResponse({ success: true });
+      }
+      return true;
+    });
+  }
 
   function openTuifOverlay(dataUrl) {
-    const existing = document.getElementById('tuif-overlay-container');
-    if (existing) existing.remove();
-
     const dpr = window.devicePixelRatio || 1;
     const width = window.innerWidth;
     const height = window.innerHeight;
@@ -156,7 +162,7 @@
     const toastTitle = container.querySelector('#tuif-toast-title');
     const toastPath = container.querySelector('#tuif-toast-path');
 
-    // Default mode: 'select'
+    // Fresh isolated state per capture
     let currentMode = 'select';
     const annotationColor = '#EF4444'; // Red default
     const strokeWidth = 3.5;
@@ -166,7 +172,6 @@
     let hoveredElement = null;
     let hoveredRect = null;
 
-    // Structured State for crisp rendering & deselecting
     const selectedComponents = [];
     const drawnStrokes = [];
 
@@ -174,7 +179,6 @@
     const redoStack = [];
     const MAX_HISTORY = 30;
 
-    // Render entire scene cleanly
     function renderAll() {
       baseCtx.clearRect(0, 0, width, height);
       if (img.complete && img.naturalWidth > 0) {
@@ -186,7 +190,7 @@
         drawStroke(baseCtx, stroke);
       }
 
-      // Draw active selected component boxes (outline only)
+      // Draw active selected component boxes (outline only, no fill)
       for (const comp of selectedComponents) {
         renderComponentBox(baseCtx, comp.rect);
       }
@@ -336,7 +340,6 @@
       if (!el) return '';
       const clone = el.cloneNode(true);
 
-      // Truncate gigantic base64 inline images
       const images = clone.querySelectorAll('img');
       images.forEach(img => {
         if (img.src && img.src.startsWith('data:image/') && img.src.length > 120) {
@@ -361,7 +364,7 @@
     }
 
     // Canvas Events
-    previewCanvas.addEventListener('mousedown', (e) => {
+    function onMouseDown(e) {
       if (e.button !== 0) return;
 
       if (currentMode === 'draw') {
@@ -374,12 +377,11 @@
           const existingIdx = findSelectedIndex(found.element, found.rect);
 
           if (existingIdx !== -1) {
-            // DESELECT: remove from selected list!
+            // DESELECT
             selectedComponents.splice(existingIdx, 1);
             renderAll();
             saveState();
 
-            // Flash deselect indicator (dim dashed outline)
             previewCtx.clearRect(0, 0, width, height);
             previewCtx.save();
             previewCtx.strokeStyle = '#94a3b8';
@@ -391,7 +393,7 @@
               previewCtx.clearRect(0, 0, width, height);
             }, 180);
           } else {
-            // SELECT: add to selected list!
+            // SELECT
             selectedComponents.push({
               element: found.element,
               rect: found.rect,
@@ -400,7 +402,6 @@
             renderAll();
             saveState();
 
-            // Flash green select indicator in preview
             previewCtx.clearRect(0, 0, width, height);
             previewCtx.save();
             previewCtx.strokeStyle = '#22c55e';
@@ -413,9 +414,9 @@
           }
         }
       }
-    });
+    }
 
-    window.addEventListener('mousemove', (e) => {
+    function onMouseMove(e) {
       if (currentMode === 'draw') {
         if (!isDrawing) return;
         points.push({ x: e.clientX, y: e.clientY });
@@ -441,7 +442,6 @@
           previewCtx.save();
 
           if (isAlreadySelected) {
-            // Hovering an already selected component -> prompt deselect
             previewCtx.strokeStyle = '#f87171';
             previewCtx.lineWidth = 2.5;
             previewCtx.setLineDash([4, 4]);
@@ -460,7 +460,6 @@
           previewCtx.strokeRect(x, y, w, h);
           previewCtx.restore();
 
-          // Component Tag Badge
           const tag = hoveredElement.tagName.toLowerCase();
           const className = typeof hoveredElement.className === 'string' && hoveredElement.className
             ? '.' + hoveredElement.className.trim().split(/\s+/)[0]
@@ -485,9 +484,9 @@
           hoveredRect = null;
         }
       }
-    });
+    }
 
-    window.addEventListener('mouseup', () => {
+    function onMouseUp() {
       if (currentMode === 'draw' && isDrawing) {
         isDrawing = false;
         previewCtx.clearRect(0, 0, width, height);
@@ -496,12 +495,57 @@
         renderAll();
         saveState();
       }
-    });
+    }
 
+    previewCanvas.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+
+    // Bulletproof Clipboard Copy in Foreground
+    async function copyTextToClipboardForeground(text) {
+      let copied = false;
+      try {
+        await navigator.clipboard.writeText(text);
+        copied = true;
+      } catch (err) {
+        // Fallback using textarea inside overlay
+        try {
+          const ta = document.createElement('textarea');
+          ta.value = text;
+          ta.style.position = 'fixed';
+          ta.style.opacity = '0';
+          ta.style.left = '-9999px';
+          container.appendChild(ta);
+          ta.focus();
+          ta.select();
+          ta.setSelectionRange(0, 9999999);
+          copied = document.execCommand('copy');
+          ta.remove();
+        } catch (_) {}
+      }
+
+      // Also request background offscreen document to write clipboard (failsafe)
+      try {
+        chrome.runtime.sendMessage({
+          type: 'FORCE_CLIPBOARD_WRITE',
+          text: text
+        });
+      } catch (_) {}
+
+      return copied;
+    }
+
+    // Clean teardown helper that strips all window listeners
     function closeOverlay() {
       window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
       container.remove();
+      window.__TUIF_CLEANUP__ = null;
     }
+
+    // Register cleanup function globally
+    window.__TUIF_CLEANUP__ = closeOverlay;
 
     btnClose.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -518,25 +562,7 @@
       redo();
     });
 
-    async function copyTextToClipboard(text) {
-      try {
-        await navigator.clipboard.writeText(text);
-        return true;
-      } catch (err) {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        ta.style.position = 'fixed';
-        ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        const success = document.execCommand('copy');
-        ta.remove();
-        return success;
-      }
-    }
-
-    // 1. COPY IMAGE PATH ACTION (Ctrl+C — Ephemeral: Auto-cleans previous copied screenshots)
+    // 1. COPY IMAGE PATH ACTION (Ctrl+C)
     async function handleCopy() {
       btnCopy.disabled = true;
       btnCopy.style.opacity = '0.5';
@@ -551,7 +577,7 @@
 
         if (response && response.success && response.path) {
           const pathToCopy = response.path;
-          await copyTextToClipboard(pathToCopy);
+          await copyTextToClipboardForeground(pathToCopy);
 
           toastTitle.textContent = 'Screenshot path copied! (Ctrl+C)';
           toastPath.textContent = pathToCopy;
@@ -559,7 +585,7 @@
 
           setTimeout(() => {
             closeOverlay();
-          }, 1800);
+          }, 1600);
         } else {
           toastTitle.textContent = 'Copy Failed';
           toastPath.textContent = response?.error || 'Unknown error';
@@ -584,16 +610,17 @@
       btnCopyCode.style.opacity = '0.5';
 
       try {
-        let components = [...selectedComponents];
+        const components = [...selectedComponents];
 
         // If user hasn't clicked to box any component yet, but is currently hovering over one in select mode:
         if (components.length === 0 && hoveredElement && hoveredRect) {
-          components.push({
+          const autoComp = {
             element: hoveredElement,
             rect: hoveredRect,
             html: cleanComponentHTML(hoveredElement)
-          });
-          selectedComponents.push(components[0]);
+          };
+          components.push(autoComp);
+          selectedComponents.push(autoComp);
           renderAll();
           saveState();
         }
@@ -606,21 +633,8 @@
           return;
         }
 
-        // Save annotated screenshot to ephemeral storage so prompt includes both image + code block!
-        const fullDataUrl = baseCanvas.toDataURL('image/png');
-        const response = await chrome.runtime.sendMessage({
-          type: 'COPY_EPHEMERAL',
-          dataUrl: fullDataUrl
-        });
-
-        const imagePath = response?.path || '';
-
-        // Construct structured markdown code block output
-        let output = '';
-        if (imagePath) {
-          output += `${imagePath}\n\n`;
-        }
-
+        // Build code block text template with placeholder for screenshot path
+        let codeBlock = '';
         if (components.length === 1) {
           const comp = components[0];
           const tag = comp.element.tagName.toLowerCase();
@@ -629,9 +643,9 @@
             ? '.' + comp.element.className.trim().split(/\s+/)[0]
             : '';
 
-          output += `<!-- Component: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\``;
+          codeBlock = `<!-- Component: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\``;
         } else {
-          output += `<!-- Selected Components (${components.length}) -->\n\n`;
+          codeBlock = `<!-- Selected Components (${components.length}) -->\n\n`;
           components.forEach((comp, idx) => {
             const tag = comp.element.tagName.toLowerCase();
             const id = comp.element.id ? `#${comp.element.id}` : '';
@@ -639,11 +653,24 @@
               ? '.' + comp.element.className.trim().split(/\s+/)[0]
               : '';
 
-            output += `<!-- Component ${idx + 1} of ${components.length}: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\`\n\n`;
+            codeBlock += `<!-- Component ${idx + 1} of ${components.length}: <${tag}${id}${cls}> -->\n\`\`\`html\n${comp.html}\n\`\`\`\n\n`;
           });
         }
 
-        await copyTextToClipboard(output.trim());
+        const templateText = `__SCREENSHOT_PATH_PLACEHOLDER__\n\n${codeBlock.trim()}`;
+
+        // Save annotated screenshot to ephemeral storage and write to clipboard in background & foreground
+        const fullDataUrl = baseCanvas.toDataURL('image/png');
+        const response = await chrome.runtime.sendMessage({
+          type: 'COPY_EPHEMERAL',
+          dataUrl: fullDataUrl,
+          customClipboardText: templateText
+        });
+
+        const imagePath = response?.path || '';
+        const finalText = templateText.replace('__SCREENSHOT_PATH_PLACEHOLDER__', imagePath).trim();
+
+        await copyTextToClipboardForeground(finalText);
 
         toastTitle.textContent = `Component Code Copied! (Ctrl+Shift+C)`;
         const tagPreview = components.map(c => `<${c.element.tagName.toLowerCase()}>`).join(', ');
@@ -652,7 +679,7 @@
 
         setTimeout(() => {
           closeOverlay();
-        }, 2000);
+        }, 1800);
 
       } catch (err) {
         console.error('Error copying component code:', err);
@@ -670,7 +697,7 @@
       handleCopyComponentCode();
     });
 
-    // 3. DOWNLOAD ACTION (Permanent: Saved permanently & path copied to clipboard, Ctrl+S)
+    // 3. DOWNLOAD ACTION (Permanent & copies path, Ctrl+S)
     async function handleDownload() {
       btnDownload.disabled = true;
       btnDownload.style.opacity = '0.5';
@@ -685,7 +712,7 @@
 
         if (response && response.success && response.path) {
           const pathToCopy = response.path;
-          await copyTextToClipboard(pathToCopy);
+          await copyTextToClipboardForeground(pathToCopy);
 
           toastTitle.textContent = 'Saved permanently & path copied for terminal!';
           toastPath.textContent = pathToCopy;
@@ -693,7 +720,7 @@
 
           setTimeout(() => {
             closeOverlay();
-          }, 2000);
+          }, 1800);
         } else {
           toastTitle.textContent = 'Download Failed';
           toastPath.textContent = response?.error || 'Unknown error';
