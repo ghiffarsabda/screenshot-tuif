@@ -4,7 +4,6 @@
  */
 
 (() => {
-  // Prevent duplicate listener registration
   if (window.__TUIF_INITIALIZED__) return;
   window.__TUIF_INITIALIZED__ = true;
 
@@ -17,7 +16,6 @@
   });
 
   function openTuifOverlay(dataUrl) {
-    // Remove existing if any
     const existing = document.getElementById('tuif-overlay-container');
     if (existing) existing.remove();
 
@@ -25,7 +23,6 @@
     const width = window.innerWidth;
     const height = window.innerHeight;
 
-    // Build DOM structure
     const container = document.createElement('div');
     container.id = 'tuif-overlay-container';
 
@@ -60,16 +57,16 @@
           </svg>
         </button>
 
-        <!-- Copy (TUI Friendly: Saves & copies path) -->
-        <button class="tuif-pill-btn" id="tuif-btn-copy" title="Copy Path for Terminal (Ctrl+C)">
+        <!-- Copy (Saves to Ephemeral directory & copies path) -->
+        <button class="tuif-pill-btn" id="tuif-btn-copy" title="Copy Ephemeral Path for Terminal (Ctrl+C)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
             <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
           </svg>
         </button>
 
-        <!-- Download -->
-        <button class="tuif-pill-btn" id="tuif-btn-download" title="Save Image (Ctrl+S)">
+        <!-- Download (Saves permanently to Downloads & copies path) -->
+        <button class="tuif-pill-btn" id="tuif-btn-download" title="Save Permanently & Copy Path (Ctrl+S)">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
             <polyline points="7 10 12 15 17 10"></polyline>
@@ -90,13 +87,11 @@
 
     document.documentElement.appendChild(container);
 
-    // Canvases
     const baseCanvas = container.querySelector('#tuif-base-canvas');
     const previewCanvas = container.querySelector('#tuif-preview-canvas');
     const baseCtx = baseCanvas.getContext('2d');
     const previewCtx = previewCanvas.getContext('2d');
 
-    // Scale canvas to pixel ratio for sharp retina rendering
     baseCanvas.width = Math.round(width * dpr);
     baseCanvas.height = Math.round(height * dpr);
     previewCanvas.width = Math.round(width * dpr);
@@ -105,7 +100,6 @@
     baseCtx.scale(dpr, dpr);
     previewCtx.scale(dpr, dpr);
 
-    // Controls
     const btnClose = container.querySelector('#tuif-close-btn');
     const btnUndo = container.querySelector('#tuif-btn-undo');
     const btnRedo = container.querySelector('#tuif-btn-redo');
@@ -115,13 +109,11 @@
     const toastTitle = container.querySelector('#tuif-toast-title');
     const toastPath = container.querySelector('#tuif-toast-path');
 
-    // Drawing State
     const currentColor = '#EF4444'; // Red default
     const strokeWidth = 3.5;
     let isDrawing = false;
     let points = [];
 
-    // History Stacks
     const undoStack = [];
     const redoStack = [];
     const MAX_HISTORY = 30;
@@ -155,7 +147,6 @@
       updateHistoryButtons();
     }
 
-    // Load frozen captured image
     const img = new Image();
     img.onload = () => {
       baseCtx.drawImage(img, 0, 0, width, height);
@@ -163,12 +154,10 @@
     };
     img.src = dataUrl;
 
-    // Coordinate helper
     function getPoint(e) {
       return { x: e.clientX, y: e.clientY };
     }
 
-    // Freehand Pen Drawing
     function drawStroke(ctx, pts) {
       if (pts.length === 0) return;
       ctx.save();
@@ -216,7 +205,6 @@
       pushHistory();
     });
 
-    // Tear down
     function closeOverlay() {
       window.removeEventListener('keydown', onKeyDown, true);
       container.remove();
@@ -237,7 +225,25 @@
       redo();
     });
 
-    // Copy Action (Terminal UI Friendly)
+    async function copyTextToClipboard(text) {
+      try {
+        await navigator.clipboard.writeText(text);
+        return true;
+      } catch (err) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        const success = document.execCommand('copy');
+        ta.remove();
+        return success;
+      }
+    }
+
+    // 1. COPY ACTION (Ephemeral: Auto-cleans previous copied screenshots)
     async function handleCopy() {
       btnCopy.disabled = true;
       btnCopy.style.opacity = '0.5';
@@ -245,44 +251,24 @@
       try {
         const fullDataUrl = baseCanvas.toDataURL('image/png');
 
-        // Request background service worker to save to disk and return absolute path
         const response = await chrome.runtime.sendMessage({
-          type: 'SAVE_AND_GET_PATH',
+          type: 'COPY_EPHEMERAL',
           dataUrl: fullDataUrl
         });
 
         if (response && response.success && response.path) {
           const pathToCopy = response.path;
+          await copyTextToClipboard(pathToCopy);
 
-          // Copy path string to clipboard
-          let copied = false;
-          try {
-            await navigator.clipboard.writeText(pathToCopy);
-            copied = true;
-          } catch (clipErr) {
-            // Fallback for clipboard write
-            const ta = document.createElement('textarea');
-            ta.value = pathToCopy;
-            ta.style.position = 'fixed';
-            ta.style.opacity = '0';
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            copied = document.execCommand('copy');
-            ta.remove();
-          }
-
-          // Show Toast notification
-          toastTitle.textContent = 'Path copied to clipboard! (TUI Friendly)';
+          toastTitle.textContent = 'Ephemeral path copied! (Auto-cleans on next copy)';
           toastPath.textContent = pathToCopy;
           toast.classList.add('show');
 
-          // Auto-close after 1.8s
           setTimeout(() => {
             closeOverlay();
           }, 1800);
         } else {
-          toastTitle.textContent = 'Save Failed';
+          toastTitle.textContent = 'Copy Failed';
           toastPath.textContent = response?.error || 'Unknown error';
           toast.classList.add('show');
         }
@@ -299,20 +285,40 @@
       handleCopy();
     });
 
-    // Download Action
+    // 2. DOWNLOAD ACTION (Permanent: Saved permanently & path copied to clipboard)
     async function handleDownload() {
+      btnDownload.disabled = true;
+      btnDownload.style.opacity = '0.5';
+
       try {
         const fullDataUrl = baseCanvas.toDataURL('image/png');
-        await chrome.runtime.sendMessage({
-          type: 'DOWNLOAD_IMAGE',
+
+        const response = await chrome.runtime.sendMessage({
+          type: 'DOWNLOAD_PERMANENT',
           dataUrl: fullDataUrl
         });
-        toastTitle.textContent = 'Screenshot saved to Downloads!';
-        toastPath.textContent = 'Saved to screenshot-tuif folder';
-        toast.classList.add('show');
-        setTimeout(() => closeOverlay(), 1500);
+
+        if (response && response.success && response.path) {
+          const pathToCopy = response.path;
+          await copyTextToClipboard(pathToCopy);
+
+          toastTitle.textContent = 'Saved permanently & path copied for terminal!';
+          toastPath.textContent = pathToCopy;
+          toast.classList.add('show');
+
+          setTimeout(() => {
+            closeOverlay();
+          }, 2000);
+        } else {
+          toastTitle.textContent = 'Download Failed';
+          toastPath.textContent = response?.error || 'Unknown error';
+          toast.classList.add('show');
+        }
       } catch (err) {
         console.error('Error downloading:', err);
+      } finally {
+        btnDownload.disabled = false;
+        btnDownload.style.opacity = '1';
       }
     }
 
@@ -321,7 +327,6 @@
       handleDownload();
     });
 
-    // Keyboard Shortcuts
     function onKeyDown(e) {
       if (e.key === 'Escape') {
         closeOverlay();

@@ -20,8 +20,8 @@ The interface matches your exact terminal workflow:
 - 💊 **Bottom-Center Floating Pill Toolbar**:
   - **Undo (↶)** (`Ctrl+Z`): Undo annotation strokes.
   - **Redo (↷)** (`Ctrl+Y`): Redo annotation strokes.
-  - **Copy (📋)** (`Ctrl+C`): **Saves the screenshot and copies the exact filesystem path for your terminal!**
-  - **Download (📥)** (`Ctrl+S`): Saves the screenshot file to your Downloads folder.
+  - **Copy (📋)** (`Ctrl+C`): **Saves to an ephemeral directory (`screenshot-tuif/ephemeral/`) and copies path**. Automatically cleans up previous copied screenshots when a new one is taken so your disk stays tidy.
+  - **Download (📥)** (`Ctrl+S`): **Saves permanently** to your main download directory (`screenshot-tuif/`) and **still copies the path to your clipboard** for terminal paste.
 
 ---
 
