@@ -266,12 +266,8 @@
         baseCtx.beginPath();
         baseCtx.roundRect(x, y, w, h, 4);
         baseCtx.stroke();
-        baseCtx.fillStyle = 'rgba(239, 68, 68, 0.08)';
-        baseCtx.fill();
       } else {
         baseCtx.strokeRect(x, y, w, h);
-        baseCtx.fillStyle = 'rgba(239, 68, 68, 0.08)';
-        baseCtx.fillRect(x, y, w, h);
       }
       baseCtx.restore();
 
@@ -339,8 +335,6 @@
           const h = hoveredRect.height + pad * 2;
 
           previewCtx.strokeRect(x, y, w, h);
-          previewCtx.fillStyle = 'rgba(239, 68, 68, 0.12)';
-          previewCtx.fillRect(x, y, w, h);
           previewCtx.restore();
 
           // Component Tag Badge
