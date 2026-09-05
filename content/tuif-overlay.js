@@ -1,12 +1,17 @@
 /**
  * Screenshot TUIF - In-Page Overlay Script
  * Two annotation options:
- * 1. Freehand Draw (draw over manually with red pen)
- * 2. Component Select (hover on webpage components and click to box them in red, multiple selection supported)
+ * 1. Component Select (Default, on the left):
+ *    - Hover to inspect components.
+ *    - Click to create crisp red outline boxes (no fill).
+ *    - Click the same component twice to DESELECT it!
+ *    - Multi-select supported.
+ * 2. Freehand Draw (on the right):
+ *    - Draw over manually with the red pen.
  * 
  * Copy options:
  * - Ctrl+C: Copy screenshot image path (ephemeral, auto-cleaning)
- * - Ctrl+Shift+C: Copy component code block (with screenshot path and exact HTML/JSX component markup)
+ * - Ctrl+Shift+C: Copy component code block (with screenshot path + exact HTML markup)
  * - Ctrl+S: Permanent download (also copies path)
  */
 
@@ -151,7 +156,7 @@
     const toastTitle = container.querySelector('#tuif-toast-title');
     const toastPath = container.querySelector('#tuif-toast-path');
 
-    // Mode: 'select' (default) or 'draw'
+    // Default mode: 'select'
     let currentMode = 'select';
     const annotationColor = '#EF4444'; // Red default
     const strokeWidth = 3.5;
@@ -161,18 +166,37 @@
     let hoveredElement = null;
     let hoveredRect = null;
 
-    // Track selected components for code block extraction
+    // Structured State for crisp rendering & deselecting
     const selectedComponents = [];
+    const drawnStrokes = [];
 
     const undoStack = [];
     const redoStack = [];
     const MAX_HISTORY = 30;
 
-    function pushHistory(actionType = 'stroke') {
+    // Render entire scene cleanly
+    function renderAll() {
+      baseCtx.clearRect(0, 0, width, height);
+      if (img.complete && img.naturalWidth > 0) {
+        baseCtx.drawImage(img, 0, 0, width, height);
+      }
+
+      // Draw manual strokes
+      for (const stroke of drawnStrokes) {
+        drawStroke(baseCtx, stroke);
+      }
+
+      // Draw active selected component boxes (outline only)
+      for (const comp of selectedComponents) {
+        renderComponentBox(baseCtx, comp.rect);
+      }
+    }
+
+    function saveState() {
       if (undoStack.length >= MAX_HISTORY) undoStack.shift();
       undoStack.push({
-        data: baseCtx.getImageData(0, 0, baseCanvas.width, baseCanvas.height),
-        actionType: actionType
+        components: selectedComponents.map(c => ({ ...c })),
+        strokes: drawnStrokes.map(s => [...s])
       });
       redoStack.length = 0;
       updateHistoryButtons();
@@ -188,12 +212,14 @@
       const current = undoStack.pop();
       redoStack.push(current);
       const prev = undoStack[undoStack.length - 1];
-      baseCtx.putImageData(prev.data, 0, 0);
 
-      if (current.actionType === 'component' && selectedComponents.length > 0) {
-        selectedComponents.pop();
-      }
+      selectedComponents.length = 0;
+      selectedComponents.push(...prev.components.map(c => ({ ...c })));
 
+      drawnStrokes.length = 0;
+      drawnStrokes.push(...prev.strokes.map(s => [...s]));
+
+      renderAll();
       updateHistoryButtons();
     }
 
@@ -201,23 +227,30 @@
       if (redoStack.length === 0) return;
       const next = redoStack.pop();
       undoStack.push(next);
-      baseCtx.putImageData(next.data, 0, 0);
+
+      selectedComponents.length = 0;
+      selectedComponents.push(...next.components.map(c => ({ ...c })));
+
+      drawnStrokes.length = 0;
+      drawnStrokes.push(...next.strokes.map(s => [...s]));
+
+      renderAll();
       updateHistoryButtons();
     }
 
     // Load frozen captured image
     const img = new Image();
     img.onload = () => {
-      baseCtx.drawImage(img, 0, 0, width, height);
-      pushHistory('init');
+      renderAll();
+      saveState();
     };
     img.src = dataUrl;
 
     // Mode Switcher
     function setMode(mode) {
       currentMode = mode;
-      btnModeDraw.classList.toggle('active', mode === 'draw');
       btnModeSelect.classList.toggle('active', mode === 'select');
+      btnModeDraw.classList.toggle('active', mode === 'draw');
       container.classList.toggle('mode-select', mode === 'select');
 
       previewCtx.clearRect(0, 0, width, height);
@@ -226,14 +259,14 @@
       hoveredRect = null;
     }
 
-    btnModeDraw.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setMode('draw');
-    });
-
     btnModeSelect.addEventListener('click', (e) => {
       e.stopPropagation();
       setMode('select');
+    });
+
+    btnModeDraw.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setMode('draw');
     });
 
     // Detect Webpage Component Under Cursor
@@ -274,12 +307,13 @@
       ctx.restore();
     }
 
-    // Draw Permanent Red Box on Selected Component (Outline only)
-    function drawComponentBox(rect) {
-      baseCtx.save();
-      baseCtx.strokeStyle = annotationColor;
-      baseCtx.lineWidth = 3;
-      baseCtx.lineJoin = 'round';
+    // Render Crisp Red Box on Selected Component (Pure Outline, No Fill)
+    function renderComponentBox(ctx, rect) {
+      ctx.save();
+      ctx.strokeStyle = annotationColor;
+      ctx.lineWidth = 3;
+      ctx.lineJoin = 'round';
+      ctx.setLineDash([]);
 
       const pad = 2;
       const x = Math.max(0, rect.left - pad);
@@ -287,16 +321,14 @@
       const w = rect.width + pad * 2;
       const h = rect.height + pad * 2;
 
-      if (baseCtx.roundRect) {
-        baseCtx.beginPath();
-        baseCtx.roundRect(x, y, w, h, 4);
-        baseCtx.stroke();
+      if (ctx.roundRect) {
+        ctx.beginPath();
+        ctx.roundRect(x, y, w, h, 4);
+        ctx.stroke();
       } else {
-        baseCtx.strokeRect(x, y, w, h);
+        ctx.strokeRect(x, y, w, h);
       }
-      baseCtx.restore();
-
-      pushHistory('component');
+      ctx.restore();
     }
 
     // Clean Component HTML for Code Block
@@ -315,6 +347,19 @@
       return clone.outerHTML.trim();
     }
 
+    // Check if element is already selected
+    function findSelectedIndex(el, rect) {
+      return selectedComponents.findIndex(c => {
+        if (c.element === el) return true;
+        return (
+          Math.abs(c.rect.left - rect.left) <= 3 &&
+          Math.abs(c.rect.top - rect.top) <= 3 &&
+          Math.abs(c.rect.width - rect.width) <= 3 &&
+          Math.abs(c.rect.height - rect.height) <= 3
+        );
+      });
+    }
+
     // Canvas Events
     previewCanvas.addEventListener('mousedown', (e) => {
       if (e.button !== 0) return;
@@ -326,25 +371,46 @@
       } else if (currentMode === 'select') {
         const found = getComponentAtPoint(e.clientX, e.clientY);
         if (found && found.rect) {
-          drawComponentBox(found.rect);
+          const existingIdx = findSelectedIndex(found.element, found.rect);
 
-          // Record component element and HTML code block
-          selectedComponents.push({
-            element: found.element,
-            rect: found.rect,
-            html: cleanComponentHTML(found.element)
-          });
+          if (existingIdx !== -1) {
+            // DESELECT: remove from selected list!
+            selectedComponents.splice(existingIdx, 1);
+            renderAll();
+            saveState();
 
-          // Flash confirmation in preview
-          previewCtx.clearRect(0, 0, width, height);
-          previewCtx.save();
-          previewCtx.strokeStyle = '#22c55e';
-          previewCtx.lineWidth = 3.5;
-          previewCtx.strokeRect(found.rect.left - 2, found.rect.top - 2, found.rect.width + 4, found.rect.height + 4);
-          previewCtx.restore();
-          setTimeout(() => {
+            // Flash deselect indicator (dim dashed outline)
             previewCtx.clearRect(0, 0, width, height);
-          }, 180);
+            previewCtx.save();
+            previewCtx.strokeStyle = '#94a3b8';
+            previewCtx.lineWidth = 2.5;
+            previewCtx.setLineDash([4, 4]);
+            previewCtx.strokeRect(found.rect.left - 2, found.rect.top - 2, found.rect.width + 4, found.rect.height + 4);
+            previewCtx.restore();
+            setTimeout(() => {
+              previewCtx.clearRect(0, 0, width, height);
+            }, 180);
+          } else {
+            // SELECT: add to selected list!
+            selectedComponents.push({
+              element: found.element,
+              rect: found.rect,
+              html: cleanComponentHTML(found.element)
+            });
+            renderAll();
+            saveState();
+
+            // Flash green select indicator in preview
+            previewCtx.clearRect(0, 0, width, height);
+            previewCtx.save();
+            previewCtx.strokeStyle = '#22c55e';
+            previewCtx.lineWidth = 3.5;
+            previewCtx.strokeRect(found.rect.left - 2, found.rect.top - 2, found.rect.width + 4, found.rect.height + 4);
+            previewCtx.restore();
+            setTimeout(() => {
+              previewCtx.clearRect(0, 0, width, height);
+            }, 180);
+          }
         }
       }
     });
@@ -369,11 +435,21 @@
           hoveredElement = found.element;
           hoveredRect = found.rect;
 
+          const isAlreadySelected = findSelectedIndex(hoveredElement, hoveredRect) !== -1;
+
           previewCtx.clearRect(0, 0, width, height);
           previewCtx.save();
-          previewCtx.strokeStyle = annotationColor;
-          previewCtx.lineWidth = 2.5;
-          previewCtx.setLineDash([6, 4]);
+
+          if (isAlreadySelected) {
+            // Hovering an already selected component -> prompt deselect
+            previewCtx.strokeStyle = '#f87171';
+            previewCtx.lineWidth = 2.5;
+            previewCtx.setLineDash([4, 4]);
+          } else {
+            previewCtx.strokeStyle = annotationColor;
+            previewCtx.lineWidth = 2.5;
+            previewCtx.setLineDash([6, 4]);
+          }
 
           const pad = 2;
           const x = hoveredRect.left - pad;
@@ -390,7 +466,12 @@
             ? '.' + hoveredElement.className.trim().split(/\s+/)[0]
             : '';
           const id = hoveredElement.id ? '#' + hoveredElement.id : '';
-          componentTag.textContent = `<${tag}${id}${className}> ${Math.round(hoveredRect.width)} × ${Math.round(hoveredRect.height)}`;
+
+          if (isAlreadySelected) {
+            componentTag.textContent = `<${tag}${id}${className}> (Click to deselect)`;
+          } else {
+            componentTag.textContent = `<${tag}${id}${className}> ${Math.round(hoveredRect.width)} × ${Math.round(hoveredRect.height)}`;
+          }
 
           const tagTop = hoveredRect.top > 26 ? hoveredRect.top - 24 : hoveredRect.bottom + 6;
           const tagLeft = Math.max(8, Math.min(window.innerWidth - 220, hoveredRect.left));
@@ -410,9 +491,10 @@
       if (currentMode === 'draw' && isDrawing) {
         isDrawing = false;
         previewCtx.clearRect(0, 0, width, height);
-        drawStroke(baseCtx, points);
+        drawnStrokes.push([...points]);
         points = [];
-        pushHistory('stroke');
+        renderAll();
+        saveState();
       }
     });
 
@@ -506,17 +588,19 @@
 
         // If user hasn't clicked to box any component yet, but is currently hovering over one in select mode:
         if (components.length === 0 && hoveredElement && hoveredRect) {
-          drawComponentBox(hoveredRect);
           components.push({
             element: hoveredElement,
             rect: hoveredRect,
             html: cleanComponentHTML(hoveredElement)
           });
+          selectedComponents.push(components[0]);
+          renderAll();
+          saveState();
         }
 
         if (components.length === 0) {
           toastTitle.textContent = 'No Component Selected';
-          toastPath.textContent = 'Select a component first (Press S, then click elements on the page).';
+          toastPath.textContent = 'Select a component first (Click elements on the page).';
           toast.classList.add('show');
           setTimeout(() => toast.classList.remove('show'), 2500);
           return;
