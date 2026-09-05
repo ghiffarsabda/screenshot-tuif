@@ -742,9 +742,13 @@
     function onKeyDown(e) {
       if (e.key === 'Escape') {
         closeOverlay();
-      } else if (e.key === 'd' || e.key === 'D') {
+      } else if (e.altKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        // Toggle/close if Alt+Shift+S is pressed while overlay is already open
+        e.preventDefault();
+        closeOverlay();
+      } else if ((e.key === 'd' || e.key === 'D') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         setMode('draw');
-      } else if (e.key === 's' || e.key === 'S') {
+      } else if ((e.key === 's' || e.key === 'S') && !e.ctrlKey && !e.metaKey && !e.altKey) {
         setMode('select');
       } else if ((e.ctrlKey || e.metaKey) && (e.key === 'z' || e.key === 'Z') && !e.shiftKey) {
         e.preventDefault();
@@ -759,7 +763,7 @@
         } else {
           handleCopy();
         }
-      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && (e.ctrlKey || e.metaKey)) {
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 's' || e.key === 'S') && !e.altKey) {
         e.preventDefault();
         handleDownload();
       }

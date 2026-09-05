@@ -3,18 +3,16 @@
  * Handles in-page capture, ephemeral cleanup, permanent download, and bulletproof offscreen clipboard writes.
  */
 
-// Trigger immediately on extension action icon click
+// Trigger immediately on extension action icon click or _execute_action shortcut (Alt+Shift+S / Option+Shift+S)
 chrome.action.onClicked.addListener(async (tab) => {
   await activateInPageOverlay(tab);
 });
 
-// Trigger on keyboard shortcut command
+// Trigger on keyboard shortcut command (supporting _execute_action or capture_visible fallback)
 chrome.commands.onCommand.addListener(async (command) => {
-  if (command === 'capture_visible') {
-    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    if (activeTab) {
-      await activateInPageOverlay(activeTab);
-    }
+  const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (activeTab) {
+    await activateInPageOverlay(activeTab);
   }
 });
 

@@ -14,7 +14,7 @@
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     },
-    "default_title": "Screenshot TUIF (Click to Capture & Annotate)"
+    "default_title": "Screenshot TUIF (Alt+Shift+S to Capture & Annotate)"
   },
   "background": {
     "service_worker": "background/service-worker.js"
@@ -29,8 +29,11 @@
     "clipboardWrite",
     "offscreen"
   ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "commands": {
-    "capture_visible": {
+    "_execute_action": {
       "suggested_key": {
         "default": "Alt+Shift+S",
         "mac": "Alt+Shift+S"
